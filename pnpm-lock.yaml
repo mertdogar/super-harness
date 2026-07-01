@@ -226,6 +226,30 @@ importers:
         specifier: ^4.1.2
         version: 4.1.9(@types/node@25.9.4)(@vitest/ui@4.1.9)(vite@8.1.0(@types/node@25.9.4)(esbuild@0.27.7)(yaml@2.9.0))
 
+  examples/dev-server:
+    dependencies:
+      '@ai-sdk/gateway':
+        specifier: ^4.0.3
+        version: 4.0.3(zod@4.4.3)
+      '@mastra/core':
+        specifier: ^1.47.0
+        version: 1.47.0(ai@7.0.3(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+      '@mastra/libsql':
+        specifier: ^1.14.2
+        version: 1.14.2(@mastra/core@1.47.0(ai@7.0.3(zod@4.4.3))(express@5.2.1)(zod@4.4.3))
+      '@mastra/memory':
+        specifier: ^1.21.2
+        version: 1.21.2(@mastra/core@1.47.0(ai@7.0.3(zod@4.4.3))(express@5.2.1)(zod@4.4.3))(zod@4.4.3)
+      '@super-harness/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@super-line/transport-websocket':
+        specifier: ^0.5.0
+        version: 0.5.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+
   packages/core:
     dependencies:
       '@ai-sdk/gateway':

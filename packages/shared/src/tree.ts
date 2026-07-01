@@ -87,7 +87,14 @@ export function apply(tree: HarnessTree, event: HarnessEvent): string[] {
       tool(tree, id, event.toolCallId, (t) => ({ ...t, argsText: t.argsText + event.argsTextDelta }))
       break
     case 'tool_start':
-      tool(tree, id, event.toolCallId, (t) => ({ ...t, toolName: event.toolName, args: event.args, status: 'input-available' }))
+      // When the model streams tool input, the tool-call chunk carries no parsed
+      // `args` — they arrive as text deltas in `argsText`. Fall back to parsing it.
+      tool(tree, id, event.toolCallId, (t) => ({
+        ...t,
+        toolName: event.toolName,
+        args: event.args ?? parseArgs(t.argsText),
+        status: 'input-available',
+      }))
       break
     case 'tool_end':
       tool(tree, id, event.toolCallId, (t) => ({
@@ -141,6 +148,15 @@ function patch(tree: HarnessTree, nodeId: string, p: Partial<NodeState>): void {
   const node = tree.nodes[nodeId]
   for (const [k, v] of Object.entries(p)) {
     if (v !== undefined) (node as unknown as Record<string, unknown>)[k] = v
+  }
+}
+
+function parseArgs(text: string): unknown {
+  if (!text) return undefined
+  try {
+    return JSON.parse(text)
+  } catch {
+    return undefined
   }
 }
 

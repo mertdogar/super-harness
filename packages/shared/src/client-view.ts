@@ -103,7 +103,12 @@ export function diffTree(prev: ClientTree, next: ClientTree): HarnessEvent[] {
     for (const tid of n.toolOrder) {
       const t = n.tools[tid]
       const pt = p?.tools[tid]
-      if (!pt) events.push({ ...env, type: 'tool_start', toolCallId: tid, toolName: t.toolName, args: t.args })
+      // Emit tool_start when args first become available (the tool leaves
+      // input-streaming) — not at first sight, when the streamed args are still
+      // empty. hasArgs also covers a tool that appears already input-available.
+      if (hasArgs(t.status) && !(pt && hasArgs(pt.status))) {
+        events.push({ ...env, type: 'tool_start', toolCallId: tid, toolName: t.toolName, args: t.args })
+      }
       if (isSettled(t.status) && !(pt && isSettled(pt.status))) {
         events.push({ ...env, type: 'tool_end', toolCallId: tid, result: t.result, isError: t.status === 'error' })
       }
@@ -138,6 +143,11 @@ function appended(prev: string, next: string): string | null {
 
 function isSettled(s: NodeState['tools'][string]['status']): boolean {
   return s === 'output-available' || s === 'error'
+}
+
+// Args are available once the tool leaves the input-streaming phase.
+function hasArgs(s: NodeState['tools'][string]['status']): boolean {
+  return s !== 'input-streaming'
 }
 
 function isTerminal(s: NodeStatus): boolean {

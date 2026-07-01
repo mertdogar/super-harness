@@ -63,6 +63,39 @@ describe('diffTree', () => {
     expect(e3[1]).toMatchObject({ type: 'node_end', reason: 'complete', usage: { totalTokens: 12 } })
   })
 
+  it('defers tool_start until the tool leaves input-streaming (args ready)', () => {
+    const prev0: ClientTree = { turns: ['r'], nodes: { r: node({ nodeId: 'r', parentNodeId: null, depth: 0 }) } }
+    const streaming: ClientTree = {
+      turns: ['r'],
+      nodes: {
+        r: node({
+          nodeId: 'r',
+          parentNodeId: null,
+          depth: 0,
+          toolOrder: ['c1'],
+          tools: { c1: tool({ toolCallId: 'c1', toolName: 'weather', status: 'input-streaming' }) },
+        }),
+      },
+    }
+    const ready: ClientTree = {
+      turns: ['r'],
+      nodes: {
+        r: node({
+          nodeId: 'r',
+          parentNodeId: null,
+          depth: 0,
+          toolOrder: ['c1'],
+          tools: { c1: tool({ toolCallId: 'c1', toolName: 'weather', status: 'input-available', args: { location: 'Berlin' } }) },
+        }),
+      },
+    }
+    // while streaming: no tool_start yet (args not ready)
+    expect(diffTree(prev0, streaming).some((e) => e.type === 'tool_start')).toBe(false)
+    // once available: tool_start carries the args
+    const ts = diffTree(streaming, ready).find((e) => e.type === 'tool_start')
+    expect(ts).toMatchObject({ toolCallId: 'c1', args: { location: 'Berlin' } })
+  })
+
   it('emits a child node_start after its parent', () => {
     const parent = node({ nodeId: 'r', parentNodeId: null, depth: 0, childOrder: ['c'] })
     const child = node({ nodeId: 'c', parentNodeId: 'r', depth: 1, agentType: 'worker', task: 'do it' })

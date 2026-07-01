@@ -1,0 +1,19 @@
+{
+  "name": "@super-harness/dev-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Runnable example: a super-harness server (createHarness + gateway agents) the tui client connects to.",
+  "type": "module",
+  "scripts": {
+    "start": "bun --env-file=../../.env server.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.3",
+    "@mastra/core": "^1.47.0",
+    "@mastra/libsql": "^1.14.2",
+    "@mastra/memory": "^1.21.2",
+    "@super-harness/core": "workspace:*",
+    "@super-line/transport-websocket": "^0.5.0",
+    "zod": "^4.4.3"
+  }
+}
