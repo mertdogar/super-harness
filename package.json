@@ -8,19 +8,20 @@
   "author": "Mert Dogar",
   "keywords": [
     "agent",
+    "agents",
+    "multi-agent",
     "ai",
-    "cli",
-    "command-line",
     "llm",
     "language-model",
     "tool-calling",
-    "openai",
-    "ollama",
-    "anthropic",
-    "groq",
-    "local",
-    "fast",
-    "efficient"
+    "orchestration",
+    "supervisor",
+    "subagent",
+    "streaming",
+    "harness",
+    "mastra",
+    "super-line",
+    "typescript"
   ],
   "repository": {
     "type": "git",
@@ -42,9 +43,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint",
     "format": "oxfmt",
-    "format:check": "oxfmt --check",
-    "docs:dev": "pnpm --filter @super-store/store build && pnpm --filter @super-store/docs dev",
-    "docs:build": "pnpm --filter @super-store/store build && pnpm --filter @super-store/docs build"
+    "format:check": "oxfmt --check"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

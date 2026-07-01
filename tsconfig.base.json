@@ -11,10 +11,6 @@
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "jsx": "react-jsx",
-    "forceConsistentCasingInFileNames": true,
-    "paths": {
-      "@super-store/store": ["./packages/store/src/index.ts"],
-      "@super-store/react": ["./packages/react/src/index.ts"]
-    }
+    "forceConsistentCasingInFileNames": true
   }
 }
