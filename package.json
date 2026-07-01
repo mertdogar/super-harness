@@ -1,0 +1,57 @@
+{
+  "name": "super-harness",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Super Harness is the missing piece that makes building and debugging AI applications easy and transparent.",
+  "license": "MIT",
+  "author": "Mert Dogar",
+  "keywords": [
+    "agent",
+    "ai",
+    "cli",
+    "command-line",
+    "llm",
+    "language-model",
+    "tool-calling",
+    "openai",
+    "ollama",
+    "anthropic",
+    "groq",
+    "local",
+    "fast",
+    "efficient"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mertdogar/super-harness.git"
+  },
+  "homepage": "https://mertdogar.github.io/super-harness/",
+  "bugs": "https://github.com/mertdogar/super-harness/issues",
+  "packageManager": "pnpm@11.5.1",
+  "devEngines": {
+    "packageManager": {
+      "name": "pnpm",
+      "version": "11.5.1",
+      "onFail": "download"
+    }
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r --if-present test",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "lint": "oxlint",
+    "format": "oxfmt",
+    "format:check": "oxfmt --check",
+    "docs:dev": "pnpm --filter @super-store/store build && pnpm --filter @super-store/docs dev",
+    "docs:build": "pnpm --filter @super-store/store build && pnpm --filter @super-store/docs build"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "oxfmt": "^0.44.0",
+    "oxlint": "^1.59.0",
+    "tsup": "^8.3.5",
+    "typescript": "~5.8.3",
+    "vitest": "^4.1.2"
+  }
+}

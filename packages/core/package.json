@@ -1,0 +1,87 @@
+{
+  "name": "@super-harness/core",
+  "version": "0.0.0",
+  "description": "Core components of Super Harness",
+  "keywords": [
+    "agent",
+    "ai",
+    "language-model",
+    "tool-calling",
+    "openai",
+    "ollama",
+    "anthropic",
+    "groq",
+    "local",
+    "fast",
+    "efficient",
+    "mastra"
+  ],
+  "homepage": "https://mertdogar.github.io/super-harness/",
+  "bugs": "https://github.com/mertdogar/super-harness/issues",
+  "license": "MIT",
+  "author": "Mert Dogar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mertdogar/super-harness.git",
+    "directory": "packages/core"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    }
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.3",
+    "@hono/node-server": "^2.0.6",
+    "@mastra/agentfs": "^0.2.0",
+    "@mastra/core": "^1.47.0",
+    "@mastra/hono": "^1.5.2",
+    "@mastra/libsql": "^1.14.2",
+    "@mastra/loggers": "^1.2.0",
+    "@mastra/memory": "^1.21.2",
+    "@super-line/core": "^0.8.0",
+    "@super-line/server": "^0.8.0",
+    "@super-line/store-memory": "^0.8.0",
+    "@super-line/store-sqlite": "^0.3.0",
+    "@super-line/transport-websocket": "^0.5.0",
+    "@super-harness/shared": "workspace:*",
+    "ai": "^7.0.3",
+    "hono": "^4.12.27",
+    "mastra": "^1.16.0",
+    "nanoid": "^5.1.7",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@super-line/client": "^0.7.0",
+    "@vitest/ui": "^4.1.4",
+    "vitest": "^4.1.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

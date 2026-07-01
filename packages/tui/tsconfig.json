@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "moduleDetection": "force",
+    "jsx": "react-jsx",
+    "jsxImportSource": "@opentui/react",
+    "allowJs": true,
+    "allowImportingTsExtensions": true,
+
+    // Bundler resolution (not NodeNext): the tui runs under Bun, and this dedupes
+    // @super-line/core to one version across the shared contract + @super-line/client
+    // (NodeNext's strict nested resolution splits them, collapsing Contract to never).
+    "moduleResolution": "Bundler",
+    "verbatimModuleSyntax": true,
+    "noEmit": true,
+
+    "strict": true,
+    "skipLibCheck": true,
+    "noFallthroughCasesInSwitch": true,
+    "types": ["node", "react"]
+  },
+  "include": ["src"]
+}

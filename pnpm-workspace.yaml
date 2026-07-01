@@ -1,0 +1,13 @@
+packages:
+  - 'packages/*'
+  - 'examples/*'
+  - 'docs'
+allowBuilds:
+  better-sqlite3: true
+  esbuild: true
+minimumReleaseAgeExclude:
+  - '@super-line/client@0.4.0'
+  - '@super-line/core@0.4.0'
+  - '@super-line/react@0.4.0'
+  - '@super-line/server@0.4.0'
+  - '@super-line/transport-websocket@0.4.0'

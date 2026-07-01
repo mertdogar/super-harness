@@ -1,0 +1,17 @@
+node_modules
+dist
+*.tsbuildinfo
+.DS_Store
+coverage
+.env
+.env.*
+*.db
+*.db-wal
+*.db-shm
+
+# docs site: vitepress build artifacts + generated API reference
+docs/.vitepress/cache
+docs/.vitepress/dist
+docs/reference/
+.impeccable/
+.super-talk/

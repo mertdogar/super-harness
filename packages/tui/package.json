@@ -1,0 +1,38 @@
+{
+  "name": "@super-harness/tui",
+  "version": "0.0.0",
+  "description": "Terminal client for Super Harness — an OpenTUI cockpit and a headless stdin/stdout shell for driving and inspecting agent turns over super-line.",
+  "homepage": "https://mertdogar.github.io/super-harness/",
+  "bugs": "https://github.com/mertdogar/super-harness/issues",
+  "license": "MIT",
+  "author": "Mert Dogar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mertdogar/super-harness.git",
+    "directory": "packages/tui"
+  },
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "bun src/index.tsx",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "dependencies": {
+    "@opentui/core": "^0.1.103",
+    "@opentui/react": "^0.1.103",
+    "@super-harness/shared": "workspace:*",
+    "@super-line/client": "^0.7.0",
+    "@super-line/core": "^0.8.0",
+    "@super-line/store-memory": "^0.8.0",
+    "@super-line/transport-websocket": "^0.5.0",
+    "nanoid": "^5.1.7",
+    "react": "^19.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "@types/react": "^19.2.0"
+  },
+  "engines": {
+    "bun": ">=1.1"
+  }
+}
