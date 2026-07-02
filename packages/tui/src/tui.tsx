@@ -36,7 +36,7 @@ function Topbar({ session, conn, host }: { session: HarnessSession; conn: Conn; 
   const right = connView(conn)
   return (
     <box flexDirection="row" height={1} paddingLeft={1} paddingRight={1}>
-      <text fg={COLORS.dim}>{`thread ${session.threadId.slice(0, 8)}`}</text>
+      <text fg={COLORS.dim}>{`thread ${session.threadId}`}</text>
       <box flexGrow={1} />
       <text fg={right.color}>{`${right.glyph} ${right.text}  `}</text>
       <text fg={COLORS.dim}>{host}</text>
@@ -231,4 +231,7 @@ export async function runTui(config: HarnessConfig): Promise<void> {
   const session = new HarnessSession(config)
   const renderer = await createCliRenderer({ exitOnCtrlC: true, screenMode: "alternate-screen" })
   createRoot(renderer).render(<Cockpit session={session} />)
+  process.on("exit", () => {
+    process.stdout.write(`\nresume this session:\n  ${session.resumeCommand()}\n`)
+  })
 }

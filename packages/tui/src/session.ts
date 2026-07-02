@@ -362,6 +362,14 @@ export class HarnessSession {
     this.handlers.onStatus({ kind: "info", message })
   }
 
+  // The exact invocation that rejoins this thread (userId included when not the
+  // default) — printed on exit so a session is always resumable.
+  resumeCommand(): string {
+    const user = this.config.params.userId
+    const userFlag = user && user !== "local" ? ` --user ${user}` : ""
+    return `pnpm -F @super-harness/tui start -- --url ${this.config.url}${userFlag} --thread ${this.threadId}`
+  }
+
   line(text: string): void {
     this.emitLine(text)
   }

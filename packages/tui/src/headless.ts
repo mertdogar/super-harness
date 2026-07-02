@@ -142,5 +142,6 @@ export async function runHeadless(config: HarnessConfig): Promise<void> {
   }
 
   session.close()
+  process.stdout.write(`<<RESUME ${session.resumeCommand()}>>\n`)
   process.exit(0)
 }
