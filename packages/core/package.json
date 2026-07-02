@@ -54,10 +54,10 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@mastra/core": "^1.47.0"
+    "@mastra/core": "^1.49.0-alpha.2"
   },
   "devDependencies": {
-    "@mastra/core": "^1.47.0",
+    "@mastra/core": "1.49.0-alpha.2",
     "vitest": "^4.1.2"
   },
   "engines": {

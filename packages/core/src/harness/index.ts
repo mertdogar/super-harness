@@ -1,15 +1,36 @@
 export {
-  createController,
-  Controller,
-  type ControllerConfig,
+  createHarness,
+  Harness,
+  HarnessThreads,
+  type HarnessConfig,
   type SubagentConfig,
   type EngineConfig,
   type SubagentEntry,
   type RunResult,
-} from './controller'
+  type SendResult,
+  type HarnessMode,
+  type HarnessSessionEvent,
+  type HarnessBusEvent,
+  type HarnessListener,
+  type PermissionRules,
+  type PermissionPolicy,
+  type ToolCategory,
+  type ApprovalDecision,
+  type ThreadStore,
+  type ThreadRecord,
+  type ThreadInfo,
+} from './harness'
 export { Projector } from './projector'
 export { memoryTreeSink, type TreeSink, type MemoryTreeSink } from './sink'
-export { runNode, type AgentRunner, type RunOptions, type NodeEnvelope, type StreamResult, type RunNodeResult } from './run-node'
+export {
+  runNode,
+  type AgentRunner,
+  type RunOptions,
+  type NodeEnvelope,
+  type StreamResult,
+  type RunNodeResult,
+  type ApprovalRequest,
+} from './run-node'
 export { createChunkAdapter, type ChunkLike, type ChunkAdapter, type Suspension } from './chunk-adapter'
 export { HARNESS_RUNTIME_KEY, DELEGATE_TOOL, type HarnessRuntime } from './runtime'
 export { makeDelegateTool, askUserTool, todoTool } from './tools'

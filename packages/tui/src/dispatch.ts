@@ -6,8 +6,13 @@ import type { HarnessSession } from "./session"
 export type DispatchResult = "quit" | void
 
 const HELP = [
-  "/send <text>      start a turn",
+  "/send <text>      start a turn (queued server-side if one is running)",
   "/reply <text>     answer a pending ask_user (yes/y for approvals)",
+  "/approve [note]   approve the pending tool call",
+  "/deny [note]      decline the pending tool call",
+  "/always           approve + always-allow this tool for the session",
+  "/mode [id]        switch mode, or list modes when no id given",
+  "/threads          list threads on the server",
   "/abort            abort the running turn",
   "/session          print thread / connection info",
   "/new [threadId]   start a fresh thread",
@@ -32,6 +37,22 @@ export async function dispatch(session: HarnessSession, raw: string): Promise<Di
       return
     case "reply":
       await session.reply(arg)
+      return
+    case "approve":
+      await session.approve("approve", arg || undefined)
+      return
+    case "deny":
+      await session.approve("decline", arg || undefined)
+      return
+    case "always":
+      await session.approve("always_allow")
+      return
+    case "mode":
+      if (arg) await session.switchMode(arg)
+      else await session.listModes()
+      return
+    case "threads":
+      await session.listThreads()
       return
     case "abort":
       await session.abort()

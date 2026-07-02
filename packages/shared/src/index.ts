@@ -1,4 +1,17 @@
-export { contract, type Contract, suspendedSchema, type Suspended } from './contract'
+export {
+  contract,
+  type Contract,
+  suspendedSchema,
+  type Suspended,
+  approvalRequiredSchema,
+  type ApprovalRequired,
+  approvalDecisionSchema,
+  type ApprovalDecision,
+  modeInfoSchema,
+  type ModeInfo,
+  threadInfoSchema,
+  type ThreadInfo,
+} from './contract'
 export {
   harnessEventSchema,
   todoItemSchema,

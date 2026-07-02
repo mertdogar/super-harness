@@ -20,6 +20,14 @@ export interface RunOptions {
   // When set, the runner resumes a suspended tool (agent.resumeStream) instead
   // of starting a fresh turn (agent.stream).
   resumeData?: unknown
+  // Mode overlay for this turn (root node only): instructions layered onto the
+  // agent's own, and an activeTools allowlist.
+  modeInstructions?: string
+  activeTools?: string[]
+  // Per-call approval predicate (root node only). When set, the runner passes it
+  // as Mastra's requireToolApproval; gated calls surface as tool-call-approval
+  // chunks handled via runNode's onApproval.
+  requireApproval?: (toolName: string) => boolean
 }
 
 export type AgentRunner = (opts: RunOptions) => Promise<StreamResult>
@@ -31,10 +39,20 @@ export interface NodeEnvelope {
   agentType?: string
 }
 
+export interface ApprovalRequest {
+  toolCallId: string
+  toolName: string
+  args?: unknown
+}
+
 export interface RunNodeResult {
   text: string
   usage?: TokenUsage
   suspended?: Suspension
+  // The stream parked on a tool-call-approval chunk and CLOSED (Mastra suspends
+  // the run). The caller resolves it via approveToolCall/declineToolCall, which
+  // return a continuation stream to drive through runNode again (emitStart: false).
+  approval?: ApprovalRequest
   error?: string
 }
 
@@ -60,12 +78,21 @@ export async function runNode(args: {
 
   try {
     const { fullStream } = await runner(run)
+    let approval: ApprovalRequest | undefined
     for await (const chunk of fullStream) {
+      if (chunk.type === 'tool-call-approval') {
+        // Mastra suspends the run here and the stream closes — park it. No
+        // node_end: the caller resolves the approval and continues this node.
+        const p = (chunk.payload ?? {}) as Record<string, unknown>
+        approval = { toolCallId: String(p.toolCallId ?? ''), toolName: String(p.toolName ?? ''), args: p.args }
+        break
+      }
       for (const body of adapter.map(chunk)) {
         if (body.type === 'text_delta') text += body.text
         emit(stamp(body))
       }
     }
+    if (approval) return { text, usage: adapter.usage, approval }
   } catch (err) {
     if (run.abortSignal?.aborted) {
       emit(stamp({ type: 'node_end', reason: 'aborted' }))

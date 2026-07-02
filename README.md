@@ -6,7 +6,7 @@ Super Harness is a **generic agent harness** for TypeScript. You bring [Mastra](
 
 It is a thin layer over two foundations: **Mastra `Agent`** is the engine at every node, and a per-node **[super-line](https://super-line.dogar.biz/) Store** is the single transport — the same Store both persists a node's progress and streams it to clients, so persistence, live streaming, and reconnect/late-join are one mechanism instead of three.
 
-The two layers are separate packages: `@super-harness/core` is the **pure engine** — importable in any project, no transport, no super-line — and `@super-harness/server` is the batteries-included super-line binding. Use the engine alone with your own persistence and delegation topology, or the server for the full streaming stack.
+The two layers are separate packages: `@super-harness/core` hosts the harness itself — an [AgentController](https://mastra.ai/docs/agent-controller/overview)-style session runtime, importable in any project, no transport, no super-line — and `@super-harness/server` exposes a harness over super-line with one call (`serve`). Unlike AgentController, the supervisor **and every subagent are real Mastra `Agent` instances you own**, and delegation streams at full fidelity at every depth.
 
 ## Why
 
@@ -24,6 +24,7 @@ Super Harness makes three guarantees the design is built around:
 - **Store-as-transport.** Each node's progress lives in a super-line Store Resource. That single document is the persistence *and* the live stream *and* the reconnect/late-join snapshot. No separate event log to reconcile with state.
 - **Read a session from anywhere.** An isomorphic client view (`subscribeTree` + `diffTree`) reassembles the reactive tree from Store Resources and turns any two snapshots into an incremental `HarnessEvent` stream. The TUI, a browser chat, and an eval all read the same way.
 - **Batteries-included built-ins.** `delegate` (spawn a subagent), `ask_user` (root-only human-in-the-loop via tool suspend/resume), and `todo` (a plan surface) come wired.
+- **A session runtime, not just a run loop.** Typed event bus (`subscribe`), follow-up queue + `steer`, a suspension registry (parallel `ask_user`s by `toolCallId`), tool approvals with permission rules and session grants, per-thread modes (instruction overlays + tool allowlists), and thread management over Mastra Memory.
 - **Durable by default.** SQLite-backed Stores out of the box; in-memory for tests.
 - **Terminal client included.** An OpenTUI cockpit for developers and a `--headless` stdin/stdout shell for agents — both drive any harness server over super-line.
 
@@ -31,8 +32,8 @@ Super Harness makes three guarantees the design is built around:
 
 | Package | What it is |
 |---|---|
-| [`@super-harness/core`](packages/core) | The pure engine: `createController`, the delegation graph (`delegatesTo` edges, depth-gated), the delegate/ask_user/todo built-ins, the chunk-adapter, the projector, and the `TreeSink` persistence port. Depends only on `shared` (+ Mastra as a peer) — no super-line, no transport. |
-| [`@super-harness/server`](packages/server) | The batteries-included binding: `createHarness` wires a `Controller` to a super-line server — durable per-node/thread Stores, the wire contract, HITL `suspended` broadcast, and the Store-backed sink. |
+| [`@super-harness/core`](packages/core) | The harness: `createHarness` returns a transport-free, AgentController-style host — delegation graph (`delegatesTo` edges, depth-gated), event bus, follow-up queue + steer, suspensions, approvals + permissions, modes, threads, and the fold to one live tree per thread. Depends only on `shared` (+ Mastra as a peer). |
+| [`@super-harness/server`](packages/server) | The super-line binding: `serve(harness, config)` — durable per-node/thread Stores, the wire contract (turns, approvals, modes, threads), and room broadcast of the ephemeral signals. |
 | [`@super-harness/shared`](packages/shared) | The isomorphic wire layer: the super-line contract, the `HarnessEvent` union, the tree types + fold (`apply`), and the client-side Store view (`subscribeTree` + `diffTree`). No Mastra, no server deps — safe in the browser, Bun, and Node. |
 | [`@super-harness/tui`](packages/tui) | The terminal client — OpenTUI cockpit + headless shell. Runs on Bun. |
 | [`examples/dev-server`](examples/dev-server) | A runnable server: a supervisor delegating to a `worker` subagent with a live weather tool. What the quickstart below runs. |
@@ -75,14 +76,15 @@ pnpm -F @super-harness/tui start -- --headless --url ws://localhost:4111/super-l
 
 ### Use it as a library
 
-`createHarness` (from `@super-harness/server`) takes your Mastra `Agent`s and returns a running super-line server whose Stores stream and persist the tree. You own the agents (models, memory, tools); the harness owns the controller, the contract, the Stores, the built-ins, and the fold.
+`createHarness` (from `@super-harness/core`) takes your Mastra `Agent`s and returns a transport-free host — the AgentController-style session runtime. `serve` (from `@super-harness/server`) exposes it over super-line, where the Stores stream and persist the tree. You own the agents (models, memory, tools); the harness owns delegation, event reduction, and state consolidation.
 
 ```ts
 import { createServer } from 'node:http'
 import { Agent } from '@mastra/core/agent'
 import { gateway } from '@ai-sdk/gateway'
 import { webSocketServerTransport } from '@super-line/transport-websocket'
-import { createHarness } from '@super-harness/server'
+import { createHarness } from '@super-harness/core'
+import { serve } from '@super-harness/server'
 
 const worker = new Agent({
   id: 'worker',
@@ -99,11 +101,19 @@ const supervisor = new Agent({
   model: gateway('anthropic/claude-haiku-4.5'),
 })
 
-const httpServer = createServer()
-await createHarness({
+const harness = createHarness({
   supervisor,
-  subagents: [{ agent: worker }],           // + { recall, delegatesTo, maxSteps } per subagent
-  maxDepth: 3,                               // gate delegation depth
+  subagents: [{ agent: worker }],      // + { recall, delegatesTo, maxSteps } per subagent
+  maxDepth: 3,                          // gate delegation depth
+  // all optional:
+  memory,                               // MastraMemory — enables harness.threads.* + mode persistence
+  modes: [{ id: 'plan', instructions: 'Plan only.', metadata: { default: true } }, { id: 'build' }],
+  permissions: { tools: { deploy: 'ask' }, categories: { execute: 'ask' } },
+  toolCategoryResolver: (name) => (name.startsWith('run_') ? 'execute' : null),
+})
+
+const httpServer = createServer()
+await serve(harness, {
   storage: { type: 'sqlite', path: './harness.db' },   // or { type: 'memory' }
   transports: [webSocketServerTransport({ server: httpServer, path: '/super-line' })],
 })
@@ -118,41 +128,42 @@ httpServer.listen(4111)
 | `delegatesTo` | `string[] \| true` | The supervisor's delegation edges. Default: every subagent. |
 | `subagents` | `SubagentConfig[]` | `{ agent, delegatesTo?, recall?, maxSteps? }`. A subagent may delegate only along its `delegatesTo` edges (`true` = everyone; default: none). |
 | `maxDepth` | `number` | Max delegation depth. Default `3`. |
-| `storage` | `{ type: 'sqlite' \| 'memory', path? }` | Durable per-node/thread Store backend. `sqlite` default. |
-| `transports` | `ServerTransport[]` | super-line transports, e.g. `webSocketServerTransport(...)`. |
-| `authenticate` | `(handshake) => { role, ctx }` | Resolve the connection's role + `userId`. Defaults to a `local` user. |
+| `modes` | `HarnessMode[]` | Per-thread operating profiles: `{ id, instructions?, availableTools?, metadata? }`. Mode instructions layer onto the supervisor's own; `availableTools` is an LLM-visible allowlist. `metadata.default: true` marks the default. |
+| `memory` | `MastraMemory` | Enables `harness.threads.*` (list/create/rename/delete) and per-thread mode persistence. |
+| `permissions` | `PermissionRules` | `allow \| ask \| deny` per tool and per category. Per-tool `deny` beats everything (even yolo); unresolved gated tools default to `ask`. Built-ins never gate. |
+| `toolCategoryResolver` | `(toolName) => ToolCategory \| null` | Maps tools to `read/edit/execute/mcp/other` for category policies and grants. |
 
-### Use the pure engine — no super-line
+### Drive it — the session runtime
 
-`@super-harness/core` is the same runtime with the transport stripped away: `createController` gives you the delegation graph, the built-ins, and the streaming fold, and you decide where the tree goes. The turn result comes back from `run()` directly, so the smallest consumer needs no sink at all.
+The harness is the AgentController analogue: subscribe once, then talk to it. Works identically before and after `serve()` — the wire contract maps 1:1 onto these methods.
 
 ```ts
-import { createController } from '@super-harness/core'
-
-const controller = createController({
-  supervisor: planner,
-  subagents: [
-    { agent: researcher, delegatesTo: ['coder'] },   // researcher may spawn coder
-    { agent: coder },                                 // leaf
-  ],
-  maxDepth: 5,
-  // optional ports:
-  sinkFor: (threadId) => myTreeSink,        // TreeSink: { writeNode, writeThread } — any persistence
-  onSuspended: (threadId, s) => notify(s),  // push-style HITL signal
+const unsub = harness.subscribe((threadId, e) => {
+  switch (e.type) {
+    case 'text_delta':          // per-node, full fidelity (nodeId/parentNodeId/depth)
+      break
+    case 'suspended':           // ask_user is waiting — resume({ threadId, resumeData })
+      break
+    case 'approval_required':   // a gated tool — respondToApproval({ threadId, decision })
+      break
+    case 'tree_changed':        // e.tree — or getTree(threadId) any time
+      break
+  }
 })
 
-const res = await controller.run(threadId, 'build me X')
-// res: { status: 'done', text, usage }
-//    | { status: 'suspended', suspension }   // ask_user is waiting
-//    | { status: 'error', error, text }
+const res = await harness.sendMessage({ threadId, content: 'build me X' })
+// { status: 'done', text, usage } | { status: 'suspended', suspension }
+// | { status: 'error', error, text } | { status: 'queued', queued }  (busy thread)
 
-if (res.status === 'suspended') {
-  const answer = await promptHuman(res.suspension)
-  await controller.resume(threadId, { answer })
-}
+await harness.steer({ threadId, content: 'stop — do Y instead' })  // abort + clear queue + send
+await harness.resume({ threadId, resumeData: { answer: 'yes' } })  // answer an ask_user
+await harness.respondToApproval({ threadId, decision: 'always_allow' })
+await harness.switchMode(threadId, 'build')                        // emits mode_changed, persists
+const threads = await harness.threads.list()                       // needs `memory`
+harness.abort(threadId)   // stops the turn, declines parked approvals, drops the queue
 ```
 
-Delegation topology is an adjacency list: any agent may list any other (chains, diamonds, cycles) — `maxDepth` is the recursion gate, and an off-graph `delegate` call fails as a tool error the model can read.
+Gated tool calls follow Mastra's native flow: the run suspends on the approval, and `approveToolCall`/`declineToolCall` resume it with a continuation stream the harness keeps driving on the same node. Approval gating and mode overlays apply to the **root** (supervisor) node only — subagents run headless with constrained tools, matching AgentController.
 
 ### Read a session from a client
 
@@ -247,23 +258,27 @@ Every progress signal is a `HarnessEvent` — a zod discriminated union with a c
 
 ### Server side
 
-`createHarness` (in `@super-harness/server`) wires a super-line server with two Store namespaces (`node`, `thread`) and a small control-plane contract, then hands runtime control to core's `Controller`:
+`serve(harness, config)` (in `@super-harness/server`) wires a super-line server with two Store namespaces (`node`, `thread`) and the control-plane contract, subscribed to the harness bus:
 
-- **`Controller`** (in `@super-harness/core`) owns a thread's turns. On `run` it drives the supervisor node; the `delegate` built-in spawns child nodes along the agent's `delegatesTo` edges (depth-gated by `maxDepth`); on `ask_user` it suspends the tool, fires `onSuspended`, and `resume` re-enters the same root.
-- **run-node** drives one node's `agent.stream()` (or `agent.resumeStream()`), injecting a `RequestContext` carrying the harness runtime and the built-in toolset.
+- **`Harness`** (in `@super-harness/core`) is the session runtime. `sendMessage` drives the supervisor node (or queues a follow-up on a busy thread); the `delegate` built-in spawns child nodes along the agent's `delegatesTo` edges (depth-gated by `maxDepth`); `ask_user` parks a suspension in the per-thread registry; gated tools park an approval; every event lands on the bus after the fold.
+- **run-node** drives one node's `agent.stream()` (or `agent.resumeStream()`), injecting a `RequestContext` carrying the harness runtime and the built-in toolset, and parking on `tool-call-approval` chunks until the gate resolves (`agent.sendToolApproval`).
 - **chunk-adapter** maps each Mastra `fullStream` chunk to `HarnessEvent` bodies — and suppresses the parent-level tool chunks for a `delegate` call (the child node represents it).
-- **Projector** folds those events into the node + thread Store Resources via `apply`.
-- **sink** (`superlineTreeSink`, in `@super-harness/server`) is the write path: it `create`s each Resource (granted to the thread's principals) before `open`ing it, so a client that opens the Resource always finds a live, readable handle. The port it implements (`TreeSink`) is two methods — that's the whole seam a custom persistence layer fills.
+- **Projector** folds those events into one live tree per thread via `apply` — the harness's own copy backs `getTree`/`tree_changed`; `serve` runs a second fold into the Store-backed sink.
+- **sink** (`superlineTreeSink`, in `@super-harness/server`) is the durable write path: it `create`s each Resource (granted to the thread's principals) before `open`ing it, so a client that opens the Resource always finds a live, readable handle. The port it implements (`TreeSink`) is two methods — that's the whole seam a custom persistence layer fills.
+- **Ephemeral signals** (`suspended`, `approvalRequired`, `modeChanged`, `followUpQueued`) broadcast to the thread's room; requests (`respondToApproval`, `switchMode`, `listThreads`, …) map 1:1 onto Harness methods.
 
 ### The contract
 
 The tree itself does **not** ride the super-line contract — it rides the Stores. The contract carries only the turn **control plane** plus the one signal that is genuinely ephemeral (not state):
 
 - `join(threadId)` — join the thread's room; the server pre-creates the thread Resource granted to this connection (a client `open()` on a not-yet-existent Resource is a dead handle, so it must exist before the client subscribes).
-- `sendMessage(threadId, message)` — start a turn.
-- `resumeMessage(threadId, resumeData)` — answer a pending `ask_user`.
+- `sendMessage(threadId, message)` — start a turn (queued server-side if one is running).
+- `resumeMessage(threadId, toolCallId?, resumeData)` — answer a pending `ask_user`.
+- `respondToApproval(threadId, toolCallId?, decision, message?)` — resolve a gated tool call (`approve/decline/always_allow/always_allow_category`).
+- `switchMode` / `listModes` — per-thread mode control.
+- `listThreads` / `createThread` / `renameThread` / `deleteThread` — thread management (needs `memory` on the harness).
 - `abort(threadId)` — abort the running turn.
-- `suspended` (server→client event) — an `ask_user` prompt is waiting. Ephemeral because it's a request for input, not durable state, so it's an event rather than a Store write.
+- Events (server→client): `suspended` (an `ask_user` prompt is waiting), `approvalRequired` (a gated tool wants a decision), `modeChanged`, `followUpQueued`. Ephemeral signals — requests for input or transient status, not durable state — so they're events rather than Store writes.
 
 ### Built-in tools
 
@@ -303,8 +318,13 @@ Flags:
 Commands (typed in the cockpit, or piped to headless stdin):
 
 ```
-/send <text>      start a turn
+/send <text>      start a turn (queued server-side if one is running)
 /reply <text>     answer a pending ask_user (yes/y for approvals)
+/approve [note]   approve the pending tool call
+/deny [note]      decline the pending tool call
+/always           approve + always-allow this tool for the session
+/mode [id]        switch mode, or list modes when no id given
+/threads          list threads on the server
 /abort            abort the running turn
 /session          print thread / connection info
 /new [threadId]   start a fresh thread
@@ -319,6 +339,8 @@ Headless status markers (on stdout):
 <<READY>>                                  connected and joined
 <<TURN_START runId=...>>                   a turn began
 <<TURN_DONE tools=N errors=N tokens=N>>    a turn finished
+<<SUSPENDED tool=... request=...>>         an ask_user awaits /reply
+<<APPROVAL_REQUIRED tool=... args=...>>    a gated tool awaits /approve or /deny
 ```
 
 ## Development
@@ -337,8 +359,8 @@ Layout:
 ```
 packages/
   shared/     isomorphic wire layer (contract, events, tree, client-view)
-  core/       pure engine (createController, projector, tools, TreeSink port)
-  server/     super-line binding (createHarness, contract impl, Store sink)
+  core/       the harness (createHarness: bus, queue, approvals, modes, threads)
+  server/     super-line binding (serve, contract impl, Store sink)
   tui/        terminal client (OpenTUI cockpit + headless shell) — Bun
 examples/
   dev-server/        runnable supervisor + worker demo

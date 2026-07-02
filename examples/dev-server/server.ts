@@ -1,6 +1,7 @@
 // A runnable super-harness server for local testing: a supervisor that delegates
-// to a `worker` subagent (which has a live weather tool), wired through
-// createHarness and served over a super-line WebSocket. Point the tui at it:
+// to a `worker` subagent (which has a live weather tool), hosted by core's
+// createHarness and exposed over a super-line WebSocket via serve(). Point the
+// tui at it:
 //
 //   bun --env-file=../../.env server.ts               # from examples/dev-server
 //   pnpm -F @super-harness/tui start -- --url ws://localhost:4111/super-line
@@ -14,7 +15,8 @@ import { LibSQLStore } from "@mastra/libsql"
 import { gateway } from "@ai-sdk/gateway"
 import { z } from "zod"
 import { webSocketServerTransport } from "@super-line/transport-websocket"
-import { createHarness } from "@super-harness/server"
+import { createHarness } from "@super-harness/core"
+import { serve } from "@super-harness/server"
 
 const PORT = Number(process.env.SUPER_HARNESS_PORT ?? 4111)
 const MODEL = process.env.CHAT_MODEL ?? "anthropic/claude-haiku-4.5"
@@ -75,10 +77,28 @@ const supervisor = new Agent({
   memory: mem(),
 })
 
-const httpServer = createServer()
-await createHarness({
+const memory = mem()
+const harness = createHarness({
   supervisor,
   subagents: [{ agent: worker }],
+  memory, // enables /threads over the wire + per-thread mode persistence
+  modes: [
+    {
+      id: "chat",
+      name: "Chat",
+      instructions: "Answer conversationally.",
+      metadata: { default: true },
+    },
+    {
+      id: "terse",
+      name: "Terse",
+      instructions: "Reply in one short sentence, no pleasantries.",
+    },
+  ],
+})
+
+const httpServer = createServer()
+await serve(harness, {
   storage: { type: "memory" },
   transports: [webSocketServerTransport({ server: httpServer, path: "/super-line" })],
 })

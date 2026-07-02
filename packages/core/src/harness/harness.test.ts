@@ -2,11 +2,12 @@ import { describe, expect, it } from 'vitest'
 import { createChunkAdapter } from './chunk-adapter'
 import { Projector } from './projector'
 import { memoryTreeSink } from './sink'
-import { Controller, type SubagentEntry } from './controller'
+import { Harness, type EngineConfig, type SubagentEntry, type ThreadRecord, type ThreadStore } from './harness'
 import type { ChunkLike } from './chunk-adapter'
 import type { HarnessEvent } from '@super-harness/shared'
+import type { HarnessBusEvent } from './harness'
 import type { HarnessRuntime } from './runtime'
-import type { AgentRunner, NodeEnvelope } from './run-node'
+import type { AgentRunner, NodeEnvelope, RunOptions } from './run-node'
 
 describe('chunk-adapter', () => {
   it('maps chunks to events and suppresses delegate tool chunks', () => {
@@ -56,29 +57,34 @@ describe('projector', () => {
     expect(thread.turns).toEqual(['r'])
     expect(thread.nodes.r.childOrder).toEqual(['c'])
     expect(thread.nodes.c.parentNodeId).toBe('r')
+
+    // the projector also exposes the live tree (sink-less operation)
+    expect(p.tree.nodes.r.text).toBe('plan done')
   })
 })
 
-describe('controller', () => {
-  // A fake runner whose stream yields the given chunks; if `delegate` is set it
-  // calls runtime.delegate mid-stream (simulating the delegate tool executing).
-  const fakeRunner =
-    (chunks: ChunkLike[], delegateTo?: { type: string; task: string; toolCallId: string }) =>
-    (_node: NodeEnvelope, runtime: HarnessRuntime): AgentRunner =>
-    async () => ({
-      fullStream: (async function* () {
-        yield { type: 'text-delta', payload: { text: 'start ' } }
-        if (delegateTo) {
-          const r = await runtime.delegate(delegateTo.type, delegateTo.task, delegateTo.toolCallId)
-          yield { type: 'text-delta', payload: { text: `got:${r.content}` } }
-        }
-        for (const c of chunks) yield c
-        yield { type: 'finish', payload: { output: { usage: { totalTokens: 7 } } } }
-      })(),
-    })
+// A fake runner whose stream yields the given chunks; if `delegate` is set it
+// calls runtime.delegate mid-stream (simulating the delegate tool executing).
+const fakeRunner =
+  (chunks: ChunkLike[], delegateTo?: { type: string; task: string; toolCallId: string }) =>
+  (_node: NodeEnvelope, runtime: HarnessRuntime): AgentRunner =>
+  async () => ({
+    fullStream: (async function* () {
+      yield { type: 'text-delta', payload: { text: 'start ' } }
+      if (delegateTo) {
+        const r = await runtime.delegate(delegateTo.type, delegateTo.task, delegateTo.toolCallId)
+        yield { type: 'text-delta', payload: { text: `got:${r.content}` } }
+      }
+      for (const c of chunks) yield c
+      yield { type: 'finish', payload: { output: { usage: { totalTokens: 7 } } } }
+    })(),
+  })
 
-  it('runs a turn, delegates to a subagent, and builds the tree in the Store', async () => {
-    const sink = memoryTreeSink()
+const engine = (registry: Map<string, SubagentEntry>, extra?: Partial<EngineConfig>): Harness =>
+  new Harness({ supervisorType: 'supervisor', registry, maxDepth: 3, ...extra })
+
+describe('harness: delegation + tree', () => {
+  it('runs a turn, delegates to a subagent, and builds the tree', async () => {
     const registry = new Map<string, SubagentEntry>()
     registry.set('supervisor', {
       agentType: 'supervisor',
@@ -94,51 +100,40 @@ describe('controller', () => {
       ]),
     })
 
-    const controller = new Controller({ supervisorType: 'supervisor', registry, maxDepth: 3, sinkFor: () => sink })
-    const res = await controller.run('t1', 'hello')
+    const harness = engine(registry)
+    const res = await harness.sendMessage({ threadId: 't1', content: 'hello' })
     expect(res).toMatchObject({ status: 'done', text: 'start got:start report', usage: { totalTokens: 7 } })
 
-    const thread = sink.readThread()!
-    const rootId = thread.turns[0]
-    expect(thread.nodes[rootId].childOrder).toEqual(['tc-1'])
-
-    const child = sink.readNode('tc-1')!
-    expect(child.parentNodeId).toBe(rootId)
-    expect(child.agentType).toBe('worker')
-    expect(child.depth).toBe(1)
-    expect(child.toolOrder).toEqual(['w1'])
-    expect(child.text).toBe('start report')
-
-    const root = sink.readNode(rootId)!
-    expect(root.status).toBe('complete')
-    expect(root.text).toBe('start got:start report') // parent saw the child's returned report
+    const tree = harness.getTree('t1')!
+    const rootId = tree.turns[0]
+    expect(tree.nodes[rootId].childOrder).toEqual(['tc-1'])
+    expect(tree.nodes['tc-1']).toMatchObject({ parentNodeId: rootId, agentType: 'worker', depth: 1 })
+    expect(tree.nodes['tc-1'].toolOrder).toEqual(['w1'])
+    expect(tree.nodes['tc-1'].text).toBe('start report')
+    expect(tree.nodes[rootId].status).toBe('complete')
   })
 
   it('blocks delegation past maxDepth', async () => {
-    const sink = memoryTreeSink()
     const registry = new Map<string, SubagentEntry>()
     registry.set('supervisor', {
       agentType: 'supervisor',
       delegatesTo: ['worker'],
       makeRunner: fakeRunner([], { type: 'worker', task: 't', toolCallId: 'tc-1' }),
     })
-    // worker tries to delegate again -> would be depth 2, over maxDepth 1
     registry.set('worker', {
       agentType: 'worker',
       delegatesTo: ['worker'],
       makeRunner: fakeRunner([], { type: 'worker', task: 't2', toolCallId: 'tc-2' }),
     })
 
-    const controller = new Controller({ supervisorType: 'supervisor', registry, maxDepth: 1, sinkFor: () => sink })
-    await controller.run('t1', 'go')
-
-    // depth-2 child never created; its would-be node id is absent
-    expect(sink.readNode('tc-2')).toBeUndefined()
-    expect(sink.readNode('tc-1')?.text).toContain('got:max delegation depth')
+    const harness = new Harness({ supervisorType: 'supervisor', registry, maxDepth: 1 })
+    await harness.sendMessage({ threadId: 't1', content: 'go' })
+    const tree = harness.getTree('t1')!
+    expect(tree.nodes['tc-2']).toBeUndefined()
+    expect(tree.nodes['tc-1'].text).toContain('got:max delegation depth')
   })
 
   it('blocks delegation to an agent outside delegatesTo', async () => {
-    const sink = memoryTreeSink()
     const registry = new Map<string, SubagentEntry>()
     registry.set('supervisor', {
       agentType: 'supervisor',
@@ -148,19 +143,448 @@ describe('controller', () => {
     registry.set('worker', { agentType: 'worker', makeRunner: fakeRunner([]) })
     registry.set('critic', { agentType: 'critic', makeRunner: fakeRunner([]) })
 
-    const controller = new Controller({ supervisorType: 'supervisor', registry, maxDepth: 3, sinkFor: () => sink })
-    await controller.run('t1', 'go')
-
-    expect(sink.readNode('tc-1')).toBeUndefined()
-    const thread = sink.readThread()!
-    expect(sink.readNode(thread.turns[0])?.text).toContain("may not delegate to 'worker'")
+    const harness = engine(registry)
+    await harness.sendMessage({ threadId: 't1', content: 'go' })
+    const tree = harness.getTree('t1')!
+    expect(tree.nodes['tc-1']).toBeUndefined()
+    expect(tree.nodes[tree.turns[0]].text).toContain("may not delegate to 'worker'")
   })
+})
 
-  it('runs without a sink and returns the result union', async () => {
+describe('harness: bus', () => {
+  it('emits raw events then a synthetic tree_changed, and unsubscribes cleanly', async () => {
     const registry = new Map<string, SubagentEntry>()
     registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
-    const controller = new Controller({ supervisorType: 'supervisor', registry, maxDepth: 1 })
-    const res = await controller.run('t1', 'hello')
-    expect(res).toMatchObject({ status: 'done', text: 'start ' })
+    const harness = engine(registry)
+
+    const seen: Array<{ threadId: string; type: string }> = []
+    const unsub = harness.subscribe((threadId, e) => seen.push({ threadId, type: e.type }))
+    await harness.sendMessage({ threadId: 't1', content: 'hello' })
+
+    const types = seen.map((s) => s.type)
+    expect(types[0]).toBe('node_start')
+    expect(types[1]).toBe('tree_changed') // synthetic follows every node event
+    expect(types).toContain('text_delta')
+    expect(types).toContain('node_end')
+    expect(seen.every((s) => s.threadId === 't1')).toBe(true)
+
+    unsub()
+    const before = seen.length
+    await harness.sendMessage({ threadId: 't1', content: 'again' })
+    expect(seen.length).toBe(before)
+  })
+})
+
+describe('harness: follow-up queue + steer', () => {
+  // a runner that parks until released, and honors abort (even if the signal
+  // fired before the stream body started)
+  const abortRejection = (signal?: AbortSignal) =>
+    new Promise((_, reject) => {
+      if (!signal) return
+      if (signal.aborted) return reject(new Error('aborted'))
+      signal.addEventListener('abort', () => reject(new Error('aborted')))
+    })
+  const gatedRunner = (release: Promise<void>, out: string) =>
+    (_node: NodeEnvelope, _rt: HarnessRuntime): AgentRunner =>
+    async (opts: RunOptions) => ({
+      fullStream: (async function* () {
+        await Promise.race([release, abortRejection(opts.abortSignal)])
+        yield { type: 'text-delta', payload: { text: out } }
+      })(),
+    })
+
+  it('queues a message while running and drains it after the turn', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    const registry = new Map<string, SubagentEntry>()
+    let calls = 0
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      makeRunner: (node, rt) => {
+        calls++
+        return calls === 1 ? gatedRunner(gate, 'first')(node, rt) : fakeRunner([])(node, rt)
+      },
+    })
+    const harness = engine(registry)
+    const events: HarnessBusEvent[] = []
+    harness.subscribe((_tid, e) => events.push(e))
+
+    const p1 = harness.sendMessage({ threadId: 't1', content: 'one' })
+    const r2 = await harness.sendMessage({ threadId: 't1', content: 'two' })
+    expect(r2).toEqual({ status: 'queued', queued: 1 })
+    expect(events.find((e) => e.type === 'follow_up_queued')).toMatchObject({ count: 1 })
+
+    release()
+    await p1
+    // drain happens async — wait for the queued turn to finish
+    await new Promise((r) => setTimeout(r, 20))
+    expect(calls).toBe(2)
+    const drained = events.filter((e) => e.type === 'follow_up_queued')
+    expect(drained.at(-1)).toMatchObject({ count: 0 })
+  })
+
+  it('steer aborts the running turn, clears the queue, and jumps in', async () => {
+    const never = new Promise<void>(() => {})
+    const registry = new Map<string, SubagentEntry>()
+    let calls = 0
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      makeRunner: (node, rt) => {
+        calls++
+        return calls === 1 ? gatedRunner(never, 'first')(node, rt) : fakeRunner([])(node, rt)
+      },
+    })
+    const harness = engine(registry)
+
+    const p1 = harness.sendMessage({ threadId: 't1', content: 'one' })
+    await harness.sendMessage({ threadId: 't1', content: 'stale' }) // queued, will be cleared
+    const steered = await harness.steer({ threadId: 't1', content: 'do this instead' })
+
+    const r1 = await p1
+    expect(r1).toMatchObject({ status: 'error', error: 'aborted' })
+    // the steer message was queued behind the dying run and drains after it
+    expect(steered).toMatchObject({ status: 'queued' })
+    await new Promise((r) => setTimeout(r, 20))
+    expect(calls).toBe(2) // 'stale' never ran
+  })
+})
+
+describe('harness: suspension registry', () => {
+  const suspendingRunner =
+    () =>
+    (_node: NodeEnvelope, _rt: HarnessRuntime): AgentRunner =>
+    async (opts: RunOptions) => ({
+      fullStream: (async function* () {
+        if (opts.resumeData !== undefined) {
+          yield { type: 'text-delta', payload: { text: `answered:${(opts.resumeData as { answer: string }).answer}` } }
+          return
+        }
+        yield { type: 'text-delta', payload: { text: 'asking ' } }
+        yield {
+          type: 'tool-call-suspended',
+          payload: { toolCallId: 'ask-1', toolName: 'ask_user', suspendPayload: { question: 'ok?' }, args: {} },
+        }
+      })(),
+    })
+
+  it('parks a suspension, emits the event, and resumes by registry', async () => {
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: suspendingRunner() })
+    const harness = engine(registry)
+    const events: HarnessBusEvent[] = []
+    harness.subscribe((_tid, e) => events.push(e))
+
+    const res = await harness.sendMessage({ threadId: 't1', content: 'go' })
+    expect(res.status).toBe('suspended')
+    const suspended = events.find((e) => e.type === 'suspended')
+    expect(suspended).toMatchObject({ toolCallId: 'ask-1', toolName: 'ask_user' })
+
+    // implicit toolCallId resolution (exactly one parked)
+    const resumed = await harness.resume({ threadId: 't1', resumeData: { answer: 'yes' } })
+    expect(resumed).toMatchObject({ status: 'done', text: 'answered:yes' })
+  })
+
+  it('rejects resume with no parked suspension', async () => {
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
+    const harness = engine(registry)
+    expect(() => harness.resume({ threadId: 't1', resumeData: {} })).toThrow('no parked suspension')
+  })
+
+  it('a mid-turn resume is rejected WITHOUT destroying the parked suspension', async () => {
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    const registry = new Map<string, SubagentEntry>()
+    let calls = 0
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      makeRunner: (node, rt) => {
+        calls++
+        if (calls === 1) return suspendingRunner()(node, rt) // first turn suspends
+        if (calls === 2)
+          return async () => ({
+            // second turn parks until released
+            fullStream: (async function* () {
+              await gate
+              yield { type: 'text-delta', payload: { text: 'second' } }
+            })(),
+          })
+        return suspendingRunner()(node, rt) // the resume
+      },
+    })
+    const harness = engine(registry)
+
+    const first = await harness.sendMessage({ threadId: 't1', content: 'one' })
+    expect(first.status).toBe('suspended')
+
+    // a NEW turn starts while the suspension is parked (allowed)
+    const second = harness.sendMessage({ threadId: 't1', content: 'two' })
+    // resuming mid-turn must reject...
+    expect(() => harness.resume({ threadId: 't1', resumeData: { answer: 'x' } })).toThrow('mid-turn')
+    release()
+    await second
+    // ...and the suspension must still be resumable afterwards
+    const resumed = await harness.resume({ threadId: 't1', resumeData: { answer: 'yes' } })
+    expect(resumed).toMatchObject({ status: 'done', text: 'answered:yes' })
+  })
+
+  it('abort drops the follow-up queue', async () => {
+    const never = new Promise<void>(() => {})
+    const registry = new Map<string, SubagentEntry>()
+    let calls = 0
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      makeRunner: () => async (opts) => {
+        calls++
+        return {
+          fullStream: (async function* () {
+            await Promise.race([
+              never,
+              new Promise((_, reject) => {
+                if (opts.abortSignal?.aborted) return reject(new Error('aborted'))
+                opts.abortSignal?.addEventListener('abort', () => reject(new Error('aborted')))
+              }),
+            ])
+            yield { type: 'text-delta', payload: { text: 'unreachable' } }
+          })(),
+        }
+      },
+    })
+    const harness = engine(registry)
+    const events: HarnessBusEvent[] = []
+    harness.subscribe((_tid, e) => events.push(e))
+
+    const p1 = harness.sendMessage({ threadId: 't1', content: 'one' })
+    await harness.sendMessage({ threadId: 't1', content: 'queued' })
+    harness.abort('t1')
+    await p1
+    await new Promise((r) => setTimeout(r, 20))
+    expect(calls).toBe(1) // the queued message never ran
+    const queueEvents = events.filter((e) => e.type === 'follow_up_queued').map((e) => e.count)
+    expect(queueEvents).toEqual([1, 0])
+  })
+})
+
+describe('harness: tool approvals', () => {
+  // Realistic Mastra semantics: the stream CLOSES on the approval chunk; the
+  // continuation arrives as a fresh stream from approve/declineToolCall.
+  const approvalRunner =
+    () =>
+    (_node: NodeEnvelope, _rt: HarnessRuntime): AgentRunner =>
+    async () => ({
+      fullStream: (async function* () {
+        yield { type: 'text-delta', payload: { text: 'pre ' } }
+        yield { type: 'tool-call-approval', payload: { toolCallId: 'a1', toolName: 'dangerous', args: { x: 1 } } }
+      })(),
+    })
+  const continuation = (text: string) => ({
+    fullStream: (async function* () {
+      yield { type: 'text-delta', payload: { text } }
+      yield { type: 'finish', payload: { output: { usage: { totalTokens: 3 } } } }
+    })(),
+  })
+
+  it('parks an ask-policy call, emits approval_required, and drives the continuation stream', async () => {
+    const approvals: unknown[] = []
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: approvalRunner() })
+    const harness = engine(registry, {
+      permissions: { tools: { dangerous: 'ask' } },
+      resolveToolCall: async (a) => {
+        approvals.push(a)
+        return continuation('done')
+      },
+    })
+
+    let sawRequired = false
+    harness.subscribe((_tid, e) => {
+      if (e.type === 'approval_required') {
+        sawRequired = true
+        expect(e).toMatchObject({ toolCallId: 'a1', toolName: 'dangerous' })
+        void harness.respondToApproval({ threadId: 't1', decision: 'approve' })
+      }
+    })
+
+    const res = await harness.sendMessage({ threadId: 't1', content: 'go' })
+    expect(sawRequired).toBe(true)
+    // text spans both stream segments; the tree accumulated it on ONE node
+    expect(res).toMatchObject({ status: 'done', text: 'pre done' })
+    expect(approvals[0]).toMatchObject({ toolCallId: 'a1', approved: true })
+    const tree = harness.getTree('t1')!
+    expect(tree.turns).toHaveLength(1)
+    expect(tree.nodes[tree.turns[0]].text).toBe('pre done')
+    expect(tree.nodes[tree.turns[0]].status).toBe('complete')
+  })
+
+  it('auto-declines a deny-policy call without asking and keeps driving', async () => {
+    const approvals: Array<{ approved: boolean }> = []
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: approvalRunner() })
+    const harness = engine(registry, {
+      permissions: { tools: { dangerous: 'deny' } },
+      resolveToolCall: async (a) => {
+        approvals.push(a)
+        return continuation('declined-and-moved-on')
+      },
+    })
+    let sawRequired = false
+    harness.subscribe((_tid, e) => void (e.type === 'approval_required' && (sawRequired = true)))
+
+    const res = await harness.sendMessage({ threadId: 't1', content: 'go' })
+    expect(sawRequired).toBe(false)
+    expect(approvals[0]).toMatchObject({ approved: false })
+    expect(res).toMatchObject({ status: 'done', text: 'pre declined-and-moved-on' })
+  })
+
+  it('abort while a gate is parked does NOT resume the dead run', async () => {
+    const approvals: unknown[] = []
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: approvalRunner() })
+    const harness = engine(registry, {
+      permissions: { tools: { dangerous: 'ask' } },
+      resolveToolCall: async (a) => {
+        approvals.push(a)
+        return continuation('zombie')
+      },
+    })
+    harness.subscribe((_tid, e) => {
+      if (e.type === 'approval_required') harness.abort('t1')
+    })
+    const res = await harness.sendMessage({ threadId: 't1', content: 'go' })
+    expect(res).toMatchObject({ status: 'error', error: 'aborted' })
+    expect(approvals).toHaveLength(0) // no continuation was requested
+  })
+
+  it('always_allow grants skip future asks; per-tool deny beats yolo', async () => {
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
+    const harness = engine(registry, {
+      permissions: { tools: { rm: 'deny' } },
+      toolCategoryResolver: () => 'execute',
+    })
+    expect(harness.resolveToolApproval('t1', 'anything')).toBe('ask')
+    harness.setYolo('t1', true)
+    expect(harness.resolveToolApproval('t1', 'anything')).toBe('allow')
+    expect(harness.resolveToolApproval('t1', 'rm')).toBe('deny') // deny beats yolo
+    harness.setYolo('t1', false)
+    expect(harness.resolveToolApproval('t1', 'todo')).toBe('allow') // built-ins never gate
+  })
+})
+
+describe('harness: modes', () => {
+  it('passes the current mode overlay to the supervisor runner and persists switches', async () => {
+    const seenOpts: RunOptions[] = []
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      makeRunner: () => async (opts) => {
+        seenOpts.push(opts)
+        return { fullStream: (async function* () {})() }
+      },
+    })
+    const saved: ThreadRecord[] = []
+    const store: ThreadStore = {
+      createThread: async (a) => ({ id: a.threadId ?? 'x', resourceId: a.resourceId }),
+      getThreadById: async ({ threadId }) => ({ id: threadId, resourceId: threadId, metadata: {} }),
+      saveThread: async ({ thread }) => void saved.push(thread),
+      deleteThread: async () => {},
+      listThreads: async () => ({ threads: [] }),
+    }
+    const harness = engine(registry, {
+      modes: [
+        { id: 'plan', instructions: 'Plan only.', metadata: { default: true } },
+        { id: 'build', instructions: 'Build it.', availableTools: ['write_file'] },
+      ],
+      threads: store,
+    })
+    const events: HarnessBusEvent[] = []
+    harness.subscribe((_tid, e) => events.push(e))
+
+    expect(harness.getMode('t1')).toBe('plan')
+    await harness.sendMessage({ threadId: 't1', content: 'go' })
+    expect(seenOpts[0].modeInstructions).toBe('Plan only.')
+    expect(seenOpts[0].activeTools).toBeUndefined()
+
+    await harness.switchMode('t1', 'build')
+    expect(events.find((e) => e.type === 'mode_changed')).toMatchObject({ modeId: 'build', previousModeId: 'plan' })
+    expect(saved[0]?.metadata?.harnessModeId).toBe('build')
+
+    await harness.sendMessage({ threadId: 't1', content: 'go' })
+    expect(seenOpts[1].modeInstructions).toBe('Build it.')
+    expect(seenOpts[1].activeTools).toEqual(['write_file'])
+
+    await expect(harness.switchMode('t1', 'nope')).rejects.toThrow('unknown mode')
+  })
+
+  it('hydrates a persisted mode on first turn', async () => {
+    const seenOpts: RunOptions[] = []
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      makeRunner: () => async (opts) => {
+        seenOpts.push(opts)
+        return { fullStream: (async function* () {})() }
+      },
+    })
+    const store: ThreadStore = {
+      createThread: async (a) => ({ id: a.threadId ?? 'x', resourceId: a.resourceId }),
+      getThreadById: async ({ threadId }) => ({
+        id: threadId,
+        resourceId: threadId,
+        metadata: { harnessModeId: 'build' },
+      }),
+      saveThread: async () => {},
+      deleteThread: async () => {},
+      listThreads: async () => ({ threads: [] }),
+    }
+    const harness = engine(registry, {
+      modes: [{ id: 'plan', instructions: 'Plan.' }, { id: 'build', instructions: 'Build.' }],
+      threads: store,
+    })
+    await harness.sendMessage({ threadId: 't9', content: 'go' })
+    expect(seenOpts[0].modeInstructions).toBe('Build.')
+  })
+})
+
+describe('harness: threads facade', () => {
+  it('lists/creates/renames/deletes through the store and emits events', async () => {
+    const db = new Map<string, ThreadRecord>()
+    const store: ThreadStore = {
+      createThread: async (a) => {
+        const t = { id: a.threadId ?? 'gen', resourceId: a.resourceId, title: a.title }
+        db.set(t.id, t)
+        return t
+      },
+      getThreadById: async ({ threadId }) => db.get(threadId) ?? null,
+      saveThread: async ({ thread }) => void db.set(thread.id, thread),
+      deleteThread: async (threadId) => void db.delete(threadId),
+      listThreads: async ({ filter }) => ({
+        threads: [...db.values()].filter((t) => !filter?.resourceId || t.resourceId === filter.resourceId),
+      }),
+    }
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
+    const harness = engine(registry, { threads: store })
+    const events: HarnessBusEvent[] = []
+    harness.subscribe((_tid, e) => events.push(e))
+
+    const created = await harness.threads.create({ threadId: 'th-1', title: 'First' })
+    expect(created).toMatchObject({ id: 'th-1', title: 'First' })
+    expect(events.find((e) => e.type === 'thread_created')).toMatchObject({ threadId: 'th-1' })
+
+    await harness.threads.rename('th-1', 'Renamed')
+    expect((await harness.threads.get('th-1'))?.title).toBe('Renamed')
+
+    expect(await harness.threads.list()).toHaveLength(1)
+    await harness.threads.delete('th-1')
+    expect(await harness.threads.list()).toHaveLength(0)
+    expect(events.find((e) => e.type === 'thread_deleted')).toMatchObject({ threadId: 'th-1' })
+  })
+
+  it('throws a descriptive error without a store', async () => {
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
+    const harness = engine(registry)
+    await expect(harness.threads.list()).rejects.toThrow('requires a memory/threads store')
   })
 })

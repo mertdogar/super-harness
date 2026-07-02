@@ -29,6 +29,8 @@ function marker(status: Status): string {
       return `<<SUSPENDED tool=${status.toolName} request=${JSON.stringify(status.request)}${
         status.resumeSchema ? ` schema=${status.resumeSchema}` : ""
       }>>`
+    case "approval_required":
+      return `<<APPROVAL_REQUIRED tool=${status.toolName} args=${JSON.stringify(status.args)}>>`
     case "error":
       return `<<ERROR ${status.message}>>`
     case "disconnected":

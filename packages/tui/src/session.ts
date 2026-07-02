@@ -34,10 +34,17 @@ export type Status =
   | { kind: "turn_start"; runId: string }
   | { kind: "turn_done"; tools: number; errors: number; tokens: number }
   | { kind: "suspended"; toolName: string; request: unknown; resumeSchema?: string }
+  | { kind: "approval_required"; toolName: string; args: unknown }
   | { kind: "error"; message: string }
   | { kind: "disconnected" }
   | { kind: "reconnected" }
   | { kind: "info"; message: string }
+
+export interface PendingApproval {
+  toolCallId: string
+  toolName: string
+  args: unknown
+}
 
 export interface Handlers {
   onEvent: (event: HarnessEvent) => void
@@ -75,6 +82,7 @@ export class HarnessSession {
   readonly config: HarnessConfig
   busy = false
   pending: Pending | null = null
+  pendingApproval: PendingApproval | null = null
   threadId: string
 
   private client: Client | null = null
@@ -84,7 +92,6 @@ export class HarnessSession {
   private poll: ReturnType<typeof setInterval> | null = null
   private unsubTree: (() => void) | null = null
   private prevTree: ClientTree = emptyTree()
-  private awaitingTurn = false
   private currentRoot: string | null = null
 
   constructor(config: HarnessConfig) {
@@ -111,6 +118,7 @@ export class HarnessSession {
 
     client.on("suspended", (payload) => {
       if (payload.threadId !== this.threadId) return
+      this.busy = false // the turn is parked server-side until /reply
       this.pending = {
         nodeId: payload.nodeId,
         toolCallId: payload.toolCallId,
@@ -124,6 +132,22 @@ export class HarnessSession {
         request: payload.request,
         resumeSchema: payload.resumeSchema,
       })
+    })
+
+    client.on("approvalRequired", (payload) => {
+      if (payload.threadId !== this.threadId) return
+      this.pendingApproval = { toolCallId: payload.toolCallId, toolName: payload.toolName, args: payload.args }
+      this.handlers.onStatus({ kind: "approval_required", toolName: payload.toolName, args: payload.args })
+    })
+
+    client.on("modeChanged", (payload) => {
+      if (payload.threadId !== this.threadId) return
+      this.handlers.onStatus({ kind: "info", message: `mode: ${payload.previousModeId} → ${payload.modeId}` })
+    })
+
+    client.on("followUpQueued", (payload) => {
+      if (payload.threadId !== this.threadId) return
+      this.handlers.onStatus({ kind: "info", message: `follow-ups queued: ${payload.count}` })
     })
 
     // Join first (the server pre-creates the thread Store Resource granted to us),
@@ -153,16 +177,20 @@ export class HarnessSession {
     this.handlers.onEvent(event)
     if (event.type === "tool_start") this.counts.tools++
     if (event.type === "error") this.counts.errors++
-    if (event.type === "node_start" && event.parentNodeId === null && this.awaitingTurn) {
-      this.awaitingTurn = false
+    // Track EVERY root node, not just ones this client initiated — server-drained
+    // follow-up turns must emit turn_start/turn_done too.
+    if (event.type === "node_start" && event.parentNodeId === null && !this.currentRoot) {
       this.currentRoot = event.nodeId
+      this.busy = true
+      this.counts = { tools: 0, errors: 0, tokens: 0 }
       this.handlers.onStatus({ kind: "turn_start", runId: event.nodeId })
     }
     if (event.type === "node_end") {
       if (event.reason === "error") this.counts.errors++
       if (event.usage?.totalTokens) this.counts.tokens += event.usage.totalTokens
-      if (event.parentNodeId === null && this.busy && event.nodeId === this.currentRoot) {
+      if (event.parentNodeId === null && event.nodeId === this.currentRoot) {
         this.busy = false
+        this.currentRoot = null
         this.handlers.onStatus({ kind: "turn_done", ...this.counts })
       }
     }
@@ -178,6 +206,7 @@ export class HarnessSession {
       this.connected = now
       this.busy = false
       this.pending = null
+      this.pendingApproval = null
       if (now) {
         this.handlers.onStatus({ kind: "reconnected" })
         void this.joinCurrent().catch((error) => this.handlers.onStatus({ kind: "error", message: errMessage(error) }))
@@ -199,24 +228,68 @@ export class HarnessSession {
   async send(text: string): Promise<void> {
     const message = text.trim()
     if (!message) return
-    if (this.busy) {
-      this.handlers.onStatus({ kind: "info", message: "turn in flight — wait for it to finish" })
-      return
-    }
     if (!this.client?.connected) {
       this.handlers.onStatus({ kind: "info", message: "not connected" })
       return
     }
-    this.counts = { tools: 0, errors: 0, tokens: 0 }
-    this.busy = true
-    this.awaitingTurn = true
-    this.currentRoot = null
     try {
       await this.joinCurrent()
+      // Busy thread? The server queues it and broadcasts followUpQueued.
       await this.client.sendMessage({ threadId: this.threadId, message })
     } catch (error) {
-      this.busy = false
-      this.awaitingTurn = false
+      this.handlers.onStatus({ kind: "error", message: errMessage(error) })
+    }
+  }
+
+  async approve(decision: "approve" | "decline" | "always_allow", message?: string): Promise<void> {
+    if (!this.pendingApproval) {
+      this.handlers.onStatus({ kind: "info", message: "no tool approval is pending" })
+      return
+    }
+    if (!this.client) return
+    const { toolCallId } = this.pendingApproval
+    try {
+      const res = await this.client.respondToApproval({ threadId: this.threadId, toolCallId, decision, message })
+      if (res.ok) this.pendingApproval = null
+      else this.handlers.onStatus({ kind: "error", message: "approval was rejected by the server" })
+    } catch (error) {
+      this.handlers.onStatus({ kind: "error", message: errMessage(error) })
+    }
+  }
+
+  async switchMode(modeId: string): Promise<void> {
+    if (!this.client) return
+    try {
+      const res = await this.client.switchMode({ threadId: this.threadId, modeId })
+      if (!res.ok) this.handlers.onStatus({ kind: "info", message: `mode switch failed (unknown mode?)` })
+    } catch (error) {
+      this.handlers.onStatus({ kind: "error", message: errMessage(error) })
+    }
+  }
+
+  async listModes(): Promise<void> {
+    if (!this.client) return
+    try {
+      const { modes, defaultModeId } = await this.client.listModes({})
+      if (modes.length === 0) return this.info("no modes configured")
+      for (const m of modes) {
+        this.emitLine(`${m.id === defaultModeId ? "*" : " "} ${m.id}${m.name ? `  (${m.name})` : ""}${m.description ? ` — ${m.description}` : ""}`)
+      }
+    } catch (error) {
+      this.handlers.onStatus({ kind: "error", message: errMessage(error) })
+    }
+  }
+
+  async listThreads(): Promise<void> {
+    if (!this.client) return
+    try {
+      const { threads } = await this.client.listThreads({})
+      if (threads.length === 0) return this.info("no threads (is a memory store configured on the harness?)")
+      for (const t of threads) {
+        const marker = t.id === this.threadId ? "*" : " "
+        this.emitLine(`${marker} ${t.id}${t.title ? `  ${t.title}` : ""}${t.updatedAt ? `  (${t.updatedAt})` : ""}`)
+      }
+    } catch (error) {
       this.handlers.onStatus({ kind: "error", message: errMessage(error) })
     }
   }
@@ -227,7 +300,7 @@ export class HarnessSession {
       return
     }
     if (!this.client) return
-    const { request, resumeSchema } = this.pending
+    const { toolCallId, request, resumeSchema } = this.pending
     const answer = text.trim()
     const resumeData =
       request === undefined
@@ -237,7 +310,7 @@ export class HarnessSession {
           : { answer }
     this.pending = null
     try {
-      await this.client.resumeMessage({ threadId: this.threadId, resumeData })
+      await this.client.resumeMessage({ threadId: this.threadId, toolCallId, resumeData })
     } catch (error) {
       this.handlers.onStatus({ kind: "error", message: errMessage(error) })
     }
@@ -248,6 +321,8 @@ export class HarnessSession {
     try {
       await this.client.abort({ threadId: this.threadId })
       this.busy = false
+      this.pending = null // the server cleared suspensions and declined approvals
+      this.pendingApproval = null
       this.handlers.onStatus({ kind: "info", message: "turn aborted" })
     } catch (error) {
       this.handlers.onStatus({ kind: "error", message: errMessage(error) })
@@ -274,6 +349,7 @@ export class HarnessSession {
     this.threadId = id ?? nanoid()
     this.busy = false
     this.pending = null
+    this.pendingApproval = null
     this.counts = { tools: 0, errors: 0, tokens: 0 }
     this.handlers.onStatus({ kind: "info", message: `new thread ${this.threadId}` })
     // join (server pre-creates the thread Resource) then subscribe — see connect().

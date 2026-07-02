@@ -108,6 +108,10 @@ function Cockpit({ session }: { session: HarnessSession }) {
             setFocus("select")
             setStatusLine("waiting for your answer")
             return
+          case "approval_required":
+            setStatusLine(`approval needed: ${status.toolName} — /approve, /deny or /always`)
+            pushSystem(`approval needed: ${status.toolName} ${JSON.stringify(status.args)} — /approve, /deny or /always`)
+            return
           case "error":
             setBusy(false)
             setStatusLine(`ERR: ${status.message}`)
@@ -140,14 +144,11 @@ function Cockpit({ session }: { session: HarnessSession }) {
   })
 
   const startTurn = (text: string) => {
-    if (busy || session.busy) {
-      setStatusLine("turn in flight — wait for it to finish")
-      return
-    }
     if (!session.isConnected) {
       setStatusLine("not connected")
       return
     }
+    // Sending while a turn runs is fine — the server queues it as a follow-up.
     setBlocks((prev) => [...prev, { kind: "user", text }])
     void session.send(text)
   }

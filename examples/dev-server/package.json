@@ -9,9 +9,10 @@
   },
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.3",
-    "@mastra/core": "^1.47.0",
-    "@mastra/libsql": "^1.14.2",
-    "@mastra/memory": "^1.21.2",
+    "@mastra/core": "1.49.0-alpha.2",
+    "@mastra/libsql": "^1.14.3",
+    "@mastra/memory": "^1.22.0",
+    "@super-harness/core": "workspace:*",
     "@super-harness/server": "workspace:*",
     "@super-line/transport-websocket": "^0.5.0",
     "zod": "^4.4.3"
