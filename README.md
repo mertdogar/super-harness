@@ -6,6 +6,8 @@ Super Harness is a **generic agent harness** for TypeScript. You bring [Mastra](
 
 It is a thin layer over two foundations: **Mastra `Agent`** is the engine at every node, and a per-node **[super-line](https://super-line.dogar.biz/) Store** is the single transport — the same Store both persists a node's progress and streams it to clients, so persistence, live streaming, and reconnect/late-join are one mechanism instead of three.
 
+The two layers are separate packages: `@super-harness/core` is the **pure engine** — importable in any project, no transport, no super-line — and `@super-harness/server` is the batteries-included super-line binding. Use the engine alone with your own persistence and delegation topology, or the server for the full streaming stack.
+
 ## Why
 
 Building on a raw agent SDK, you re-solve the same plumbing every time: how do subagent tool calls get persisted so you can fetch them later; how does a supervisor spawn and track many subagents; how does progress — main *and* nested — stream to a UI without bespoke event wiring per surface. Mastra's `AgentController` bundles an opinionated answer, but it's limiting: coarse `subagent_*` forwarding loses fidelity below the top level, and the transport is baked in.
@@ -29,7 +31,8 @@ Super Harness makes three guarantees the design is built around:
 
 | Package | What it is |
 |---|---|
-| [`@super-harness/core`](packages/core) | The runtime: `createHarness`, the session/controller, the delegate/ask_user/todo built-ins, the chunk-adapter, the server-side projector, and the super-line server wiring. |
+| [`@super-harness/core`](packages/core) | The pure engine: `createController`, the delegation graph (`delegatesTo` edges, depth-gated), the delegate/ask_user/todo built-ins, the chunk-adapter, the projector, and the `TreeSink` persistence port. Depends only on `shared` (+ Mastra as a peer) — no super-line, no transport. |
+| [`@super-harness/server`](packages/server) | The batteries-included binding: `createHarness` wires a `Controller` to a super-line server — durable per-node/thread Stores, the wire contract, HITL `suspended` broadcast, and the Store-backed sink. |
 | [`@super-harness/shared`](packages/shared) | The isomorphic wire layer: the super-line contract, the `HarnessEvent` union, the tree types + fold (`apply`), and the client-side Store view (`subscribeTree` + `diffTree`). No Mastra, no server deps — safe in the browser, Bun, and Node. |
 | [`@super-harness/tui`](packages/tui) | The terminal client — OpenTUI cockpit + headless shell. Runs on Bun. |
 | [`examples/dev-server`](examples/dev-server) | A runnable server: a supervisor delegating to a `worker` subagent with a live weather tool. What the quickstart below runs. |
@@ -72,14 +75,14 @@ pnpm -F @super-harness/tui start -- --headless --url ws://localhost:4111/super-l
 
 ### Use it as a library
 
-`createHarness` takes your Mastra `Agent`s and returns a running super-line server whose Stores stream and persist the tree. You own the agents (models, memory, tools); the harness owns the controller, the contract, the Stores, the built-ins, and the fold.
+`createHarness` (from `@super-harness/server`) takes your Mastra `Agent`s and returns a running super-line server whose Stores stream and persist the tree. You own the agents (models, memory, tools); the harness owns the controller, the contract, the Stores, the built-ins, and the fold.
 
 ```ts
 import { createServer } from 'node:http'
 import { Agent } from '@mastra/core/agent'
 import { gateway } from '@ai-sdk/gateway'
 import { webSocketServerTransport } from '@super-line/transport-websocket'
-import { createHarness } from '@super-harness/core'
+import { createHarness } from '@super-harness/server'
 
 const worker = new Agent({
   id: 'worker',
@@ -99,7 +102,7 @@ const supervisor = new Agent({
 const httpServer = createServer()
 await createHarness({
   supervisor,
-  subagents: [{ agent: worker }],           // + { recall, canDelegate, maxSteps } per subagent
+  subagents: [{ agent: worker }],           // + { recall, delegatesTo, maxSteps } per subagent
   maxDepth: 3,                               // gate delegation depth
   storage: { type: 'sqlite', path: './harness.db' },   // or { type: 'memory' }
   transports: [webSocketServerTransport({ server: httpServer, path: '/super-line' })],
@@ -112,11 +115,44 @@ httpServer.listen(4111)
 | Field | Type | Notes |
 |---|---|---|
 | `supervisor` | `Agent` | The root node's agent. Always gets `delegate`, `ask_user`, `todo`. |
-| `subagents` | `SubagentConfig[]` | `{ agent, recall?, canDelegate?, maxSteps? }`. A subagent gets `delegate` only if `canDelegate`. |
+| `delegatesTo` | `string[] \| true` | The supervisor's delegation edges. Default: every subagent. |
+| `subagents` | `SubagentConfig[]` | `{ agent, delegatesTo?, recall?, maxSteps? }`. A subagent may delegate only along its `delegatesTo` edges (`true` = everyone; default: none). |
 | `maxDepth` | `number` | Max delegation depth. Default `3`. |
 | `storage` | `{ type: 'sqlite' \| 'memory', path? }` | Durable per-node/thread Store backend. `sqlite` default. |
-| `transports` | `unknown[]` | super-line transports, e.g. `webSocketServerTransport(...)`. Kept opaque so core never statically imports the transport package (see [version skew](#a-note-on-version-skew)). |
+| `transports` | `ServerTransport[]` | super-line transports, e.g. `webSocketServerTransport(...)`. |
 | `authenticate` | `(handshake) => { role, ctx }` | Resolve the connection's role + `userId`. Defaults to a `local` user. |
+
+### Use the pure engine — no super-line
+
+`@super-harness/core` is the same runtime with the transport stripped away: `createController` gives you the delegation graph, the built-ins, and the streaming fold, and you decide where the tree goes. The turn result comes back from `run()` directly, so the smallest consumer needs no sink at all.
+
+```ts
+import { createController } from '@super-harness/core'
+
+const controller = createController({
+  supervisor: planner,
+  subagents: [
+    { agent: researcher, delegatesTo: ['coder'] },   // researcher may spawn coder
+    { agent: coder },                                 // leaf
+  ],
+  maxDepth: 5,
+  // optional ports:
+  sinkFor: (threadId) => myTreeSink,        // TreeSink: { writeNode, writeThread } — any persistence
+  onSuspended: (threadId, s) => notify(s),  // push-style HITL signal
+})
+
+const res = await controller.run(threadId, 'build me X')
+// res: { status: 'done', text, usage }
+//    | { status: 'suspended', suspension }   // ask_user is waiting
+//    | { status: 'error', error, text }
+
+if (res.status === 'suspended') {
+  const answer = await promptHuman(res.suspension)
+  await controller.resume(threadId, { answer })
+}
+```
+
+Delegation topology is an adjacency list: any agent may list any other (chains, diamonds, cycles) — `maxDepth` is the recursion gate, and an off-graph `delegate` call fails as a tool error the model can read.
 
 ### Read a session from a client
 
@@ -211,13 +247,13 @@ Every progress signal is a `HarnessEvent` — a zod discriminated union with a c
 
 ### Server side
 
-`createHarness` wires a super-line server with two Store namespaces (`node`, `thread`) and a small control-plane contract, then hands runtime control to a `Session`:
+`createHarness` (in `@super-harness/server`) wires a super-line server with two Store namespaces (`node`, `thread`) and a small control-plane contract, then hands runtime control to core's `Controller`:
 
-- **`Session`** owns a thread's turns. On `sendMessage` it runs the supervisor node; the `delegate` built-in spawns child nodes (depth-gated by `maxDepth`); on `ask_user` it suspends the tool and broadcasts a `suspended` signal, resuming on `resumeMessage`.
+- **`Controller`** (in `@super-harness/core`) owns a thread's turns. On `run` it drives the supervisor node; the `delegate` built-in spawns child nodes along the agent's `delegatesTo` edges (depth-gated by `maxDepth`); on `ask_user` it suspends the tool, fires `onSuspended`, and `resume` re-enters the same root.
 - **run-node** drives one node's `agent.stream()` (or `agent.resumeStream()`), injecting a `RequestContext` carrying the harness runtime and the built-in toolset.
 - **chunk-adapter** maps each Mastra `fullStream` chunk to `HarnessEvent` bodies — and suppresses the parent-level tool chunks for a `delegate` call (the child node represents it).
 - **Projector** folds those events into the node + thread Store Resources via `apply`.
-- **sink** (`superlineTreeSink`) is the write path: it `create`s each Resource (granted to the thread's principals) before `open`ing it, so a client that opens the Resource always finds a live, readable handle.
+- **sink** (`superlineTreeSink`, in `@super-harness/server`) is the write path: it `create`s each Resource (granted to the thread's principals) before `open`ing it, so a client that opens the Resource always finds a live, readable handle. The port it implements (`TreeSink`) is two methods — that's the whole seam a custom persistence layer fills.
 
 ### The contract
 
@@ -233,7 +269,7 @@ The tree itself does **not** ride the super-line contract — it rides the Store
 
 | Tool | Available to | Effect |
 |---|---|---|
-| `delegate` | supervisor + any subagent with `canDelegate` | Spawn a subagent node (depth-gated). The child becomes a nested lane; the delegate call is suppressed in the parent's tool transcript. |
+| `delegate` | any agent with `delegatesTo` edges | Spawn a subagent node along an edge (depth-gated, edge-enforced). The child becomes a nested lane; the delegate call is suppressed in the parent's tool transcript. |
 | `ask_user` | root node only | Suspend the run for human input (Mastra tool suspend/resume), surfaced as a `suspended` event; the turn resumes on `resumeMessage`. |
 | `todo` | every node | Publish a plan/checklist onto the thread. |
 
@@ -243,7 +279,7 @@ Stores are durable through their backend. `storage: { type: 'sqlite', path }` (t
 
 ### A note on version skew
 
-The super-line ecosystem spans several independently-versioned packages. To avoid pinning `core` to a single skewed set, the transport is passed to `createHarness` as an **opaque array** (never statically imported by `core`) and the SQLite Store backend is **dynamically imported** only when selected. This lets the server run the latest transport/store versions without dragging `core`'s type graph into a clash.
+The super-line ecosystem spans several independently-versioned packages. All of them are owned by `@super-harness/server` — one package.json pins a coherent set, and `@super-harness/core` imports none of them. The SQLite Store backend is still **dynamically imported** only when selected, so the `better-sqlite3` native build is only required if you use it.
 
 ## Terminal client
 
@@ -301,13 +337,15 @@ Layout:
 ```
 packages/
   shared/     isomorphic wire layer (contract, events, tree, client-view)
-  core/       harness runtime (createHarness, session, projector, tools, sink)
+  core/       pure engine (createController, projector, tools, TreeSink port)
+  server/     super-line binding (createHarness, contract impl, Store sink)
   tui/        terminal client (OpenTUI cockpit + headless shell) — Bun
 examples/
-  dev-server/ runnable supervisor + worker demo
+  dev-server/        runnable supervisor + worker demo
+  mastra-playground/ standalone Mastra scratchpad (not wired to the harness)
 ```
 
-Runtime notes: `core` and `shared` are Node/Bun; the `tui` requires **Bun** (OpenTUI's `bun:ffi`). Packages are source-exported (`main`/`types` point at `./src/index.ts`) so the workspace runs without a build step during development. The SQLite backend needs `better-sqlite3` built (`pnpm approve-builds` / `allowBuilds` in `pnpm-workspace.yaml`).
+Runtime notes: `core`, `server`, and `shared` are Node/Bun; the `tui` requires **Bun** (OpenTUI's `bun:ffi`). Packages are source-exported (`main`/`types` point at `./src/index.ts`) so the workspace runs without a build step during development. The SQLite backend needs `better-sqlite3` built (`pnpm approve-builds` / `allowBuilds` in `pnpm-workspace.yaml`).
 
 ## License
 

@@ -1,7 +1,7 @@
 {
-  "name": "@super-harness/core",
+  "name": "@super-harness/server",
   "version": "0.0.0",
-  "description": "Pure agent-orchestration engine for Super Harness: createController drives a tree of Mastra Agents with delegation edges, streaming events, and pluggable persistence — no transport, no super-line.",
+  "description": "Batteries-included super-line binding for Super Harness: createHarness wires a Controller to a super-line server with durable per-node/thread Stores, the wire contract, and HITL suspension broadcast.",
   "keywords": [
     "agent",
     "agents",
@@ -26,7 +26,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/mertdogar/super-harness.git",
-    "directory": "packages/core"
+    "directory": "packages/server"
   },
   "files": [
     "dist",
@@ -49,15 +49,20 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@super-harness/core": "workspace:*",
     "@super-harness/shared": "workspace:*",
-    "nanoid": "^5.1.7",
-    "zod": "^4.4.3"
+    "@super-line/core": "^0.8.0",
+    "@super-line/server": "^0.8.0",
+    "@super-line/store-memory": "^0.8.0",
+    "@super-line/store-sqlite": "^0.3.0"
   },
   "peerDependencies": {
     "@mastra/core": "^1.47.0"
   },
   "devDependencies": {
     "@mastra/core": "^1.47.0",
+    "@super-line/client": "^0.7.0",
+    "@super-line/transport-websocket": "^0.5.0",
     "vitest": "^4.1.2"
   },
   "engines": {

@@ -15,7 +15,6 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@super-line/client": "^0.7.0",
     "@super-line/core": "^0.8.0",
     "zod": "^4.4.3"
   },

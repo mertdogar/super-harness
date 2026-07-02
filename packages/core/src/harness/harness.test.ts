@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { createChunkAdapter } from './chunk-adapter'
 import { Projector } from './projector'
 import { memoryTreeSink } from './sink'
-import { Session, type SubagentEntry } from './session'
+import { Controller, type SubagentEntry } from './controller'
 import type { ChunkLike } from './chunk-adapter'
 import type { HarnessEvent } from '@super-harness/shared'
 import type { HarnessRuntime } from './runtime'
@@ -59,7 +59,7 @@ describe('projector', () => {
   })
 })
 
-describe('session', () => {
+describe('controller', () => {
   // A fake runner whose stream yields the given chunks; if `delegate` is set it
   // calls runtime.delegate mid-stream (simulating the delegate tool executing).
   const fakeRunner =
@@ -82,6 +82,7 @@ describe('session', () => {
     const registry = new Map<string, SubagentEntry>()
     registry.set('supervisor', {
       agentType: 'supervisor',
+      delegatesTo: ['worker'],
       makeRunner: fakeRunner([], { type: 'worker', task: 'do the thing', toolCallId: 'tc-1' }),
     })
     registry.set('worker', {
@@ -93,8 +94,9 @@ describe('session', () => {
       ]),
     })
 
-    const session = new Session({ supervisorType: 'supervisor', registry, maxDepth: 3, sinkFor: () => sink })
-    await session.run('t1', 'hello')
+    const controller = new Controller({ supervisorType: 'supervisor', registry, maxDepth: 3, sinkFor: () => sink })
+    const res = await controller.run('t1', 'hello')
+    expect(res).toMatchObject({ status: 'done', text: 'start got:start report', usage: { totalTokens: 7 } })
 
     const thread = sink.readThread()!
     const rootId = thread.turns[0]
@@ -117,19 +119,48 @@ describe('session', () => {
     const registry = new Map<string, SubagentEntry>()
     registry.set('supervisor', {
       agentType: 'supervisor',
+      delegatesTo: ['worker'],
       makeRunner: fakeRunner([], { type: 'worker', task: 't', toolCallId: 'tc-1' }),
     })
     // worker tries to delegate again -> would be depth 2, over maxDepth 1
     registry.set('worker', {
       agentType: 'worker',
+      delegatesTo: ['worker'],
       makeRunner: fakeRunner([], { type: 'worker', task: 't2', toolCallId: 'tc-2' }),
     })
 
-    const session = new Session({ supervisorType: 'supervisor', registry, maxDepth: 1, sinkFor: () => sink })
-    await session.run('t1', 'go')
+    const controller = new Controller({ supervisorType: 'supervisor', registry, maxDepth: 1, sinkFor: () => sink })
+    await controller.run('t1', 'go')
 
     // depth-2 child never created; its would-be node id is absent
     expect(sink.readNode('tc-2')).toBeUndefined()
     expect(sink.readNode('tc-1')?.text).toContain('got:max delegation depth')
+  })
+
+  it('blocks delegation to an agent outside delegatesTo', async () => {
+    const sink = memoryTreeSink()
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      delegatesTo: ['critic'], // worker exists but is not an allowed edge
+      makeRunner: fakeRunner([], { type: 'worker', task: 't', toolCallId: 'tc-1' }),
+    })
+    registry.set('worker', { agentType: 'worker', makeRunner: fakeRunner([]) })
+    registry.set('critic', { agentType: 'critic', makeRunner: fakeRunner([]) })
+
+    const controller = new Controller({ supervisorType: 'supervisor', registry, maxDepth: 3, sinkFor: () => sink })
+    await controller.run('t1', 'go')
+
+    expect(sink.readNode('tc-1')).toBeUndefined()
+    const thread = sink.readThread()!
+    expect(sink.readNode(thread.turns[0])?.text).toContain("may not delegate to 'worker'")
+  })
+
+  it('runs without a sink and returns the result union', async () => {
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
+    const controller = new Controller({ supervisorType: 'supervisor', registry, maxDepth: 1 })
+    const res = await controller.run('t1', 'hello')
+    expect(res).toMatchObject({ status: 'done', text: 'start ' })
   })
 })

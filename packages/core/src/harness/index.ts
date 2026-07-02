@@ -1,18 +1,23 @@
-export { createHarness, type Harness, type HarnessConfig, type SubagentConfig } from './harness'
-export { Session, type SessionConfig, type SubagentEntry } from './session'
+export {
+  createController,
+  Controller,
+  type ControllerConfig,
+  type SubagentConfig,
+  type EngineConfig,
+  type SubagentEntry,
+  type RunResult,
+} from './controller'
 export { Projector } from './projector'
-export { memoryTreeSink, superlineTreeSink, type TreeSink, type MemoryTreeSink } from './sink'
+export { memoryTreeSink, type TreeSink, type MemoryTreeSink } from './sink'
 export { runNode, type AgentRunner, type RunOptions, type NodeEnvelope, type StreamResult, type RunNodeResult } from './run-node'
 export { createChunkAdapter, type ChunkLike, type ChunkAdapter, type Suspension } from './chunk-adapter'
 export { HARNESS_RUNTIME_KEY, DELEGATE_TOOL, type HarnessRuntime } from './runtime'
 export { makeDelegateTool, askUserTool, todoTool } from './tools'
 
-// Re-export the isomorphic layer for convenience (canonical home: @super-harness/shared)
+// Re-export the pure isomorphic layer for convenience (canonical home:
+// @super-harness/shared). The super-line contract deliberately does NOT
+// ride along — it belongs to @super-harness/server and clients.
 export {
-  contract,
-  type Contract,
-  suspendedSchema,
-  type Suspended,
   harnessEventSchema,
   type HarnessEvent,
   type HarnessEventType,

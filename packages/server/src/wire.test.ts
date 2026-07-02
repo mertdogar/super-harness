@@ -12,7 +12,7 @@ import { createSuperLineClient } from '@super-line/client'
 import { webSocketServerTransport, webSocketClientTransport } from '@super-line/transport-websocket'
 import { memoryStoreServer, memoryStoreClient } from '@super-line/store-memory'
 import { contract, diffTree, emptyTree, subscribeTree, type ClientTree, type HarnessEvent } from '@super-harness/shared'
-import { Projector } from './projector'
+import { Projector } from '@super-harness/core'
 import { superlineTreeSink } from './sink'
 
 const PORT = 4123

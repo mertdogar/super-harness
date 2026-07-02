@@ -14,7 +14,7 @@ import { LibSQLStore } from "@mastra/libsql"
 import { gateway } from "@ai-sdk/gateway"
 import { z } from "zod"
 import { webSocketServerTransport } from "@super-line/transport-websocket"
-import { createHarness } from "@super-harness/core"
+import { createHarness } from "@super-harness/server"
 
 const PORT = Number(process.env.SUPER_HARNESS_PORT ?? 4111)
 const MODEL = process.env.CHAT_MODEL ?? "anthropic/claude-haiku-4.5"
