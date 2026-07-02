@@ -32,7 +32,7 @@ Super Harness makes three guarantees the design is built around:
 
 | Package | What it is |
 |---|---|
-| [`@super-harness/core`](packages/core) | The harness: `createHarness` returns a transport-free, AgentController-style host — delegation graph (`delegatesTo` edges, depth-gated), event bus, follow-up queue + steer, suspensions, approvals + permissions, modes, threads, and the fold to one live tree per thread. Depends only on `shared` (+ Mastra as a peer). |
+| [`@super-harness/core`](packages/core) | The harness: `createHarness` returns a transport-free, AgentController-style host — delegation graph (`delegatesTo` edges, depth-gated), event bus, follow-up queue + steer, suspensions, approvals + permissions, modes, threads, and the fold to one live tree per thread. Depends only on `shared` plus `nanoid`/`zod`, with Mastra as a peer — no super-line, no transport. |
 | [`@super-harness/server`](packages/server) | The super-line binding: `serve(harness, config)` — durable per-node/thread Stores, the wire contract (turns, approvals, modes, threads), and room broadcast of the ephemeral signals. |
 | [`@super-harness/shared`](packages/shared) | The isomorphic wire layer: the super-line contract, the `HarnessEvent` union, the tree types + fold (`apply`), and the client-side Store view (`subscribeTree` + `diffTree`). No Mastra, no server deps — safe in the browser, Bun, and Node. |
 | [`@super-harness/tui`](packages/tui) | The terminal client — OpenTUI cockpit + headless shell. Runs on Bun. |
@@ -124,11 +124,13 @@ httpServer.listen(4111)
 
 | Field | Type | Notes |
 |---|---|---|
-| `supervisor` | `Agent` | The root node's agent. Always gets `delegate`, `ask_user`, `todo`. |
+| `supervisor` | `Agent` | The root node's agent. Always gets `ask_user` and `todo`; gets `delegate` when it has delegation edges (i.e. any subagents). |
 | `delegatesTo` | `string[] \| true` | The supervisor's delegation edges. Default: every subagent. |
 | `subagents` | `SubagentConfig[]` | `{ agent, delegatesTo?, recall?, maxSteps? }`. A subagent may delegate only along its `delegatesTo` edges (`true` = everyone; default: none). |
 | `maxDepth` | `number` | Max delegation depth. Default `3`. |
 | `modes` | `HarnessMode[]` | Per-thread operating profiles: `{ id, instructions?, availableTools?, metadata? }`. Mode instructions layer onto the supervisor's own; `availableTools` is an LLM-visible allowlist. `metadata.default: true` marks the default. |
+| `defaultModeId` | `string` | Explicit default mode; beats `metadata.default`, else the first mode is the default. |
+| `resourceFor` | `(threadId) => string` | Maps a thread to its Mastra memory `resourceId`. Default: the threadId itself. |
 | `memory` | `MastraMemory` | Enables `harness.threads.*` (list/create/rename/delete) and per-thread mode persistence. |
 | `permissions` | `PermissionRules` | `allow \| ask \| deny` per tool and per category. Per-tool `deny` beats everything (even yolo); unresolved gated tools default to `ask`. Built-ins never gate. |
 | `toolCategoryResolver` | `(toolName) => ToolCategory \| null` | Maps tools to `read/edit/execute/mcp/other` for category policies and grants. |
@@ -240,7 +242,7 @@ flowchart TD
   T --> R2
 ```
 
-`NodeState` accumulates `status`, `reasoning`, `text`, an ordered `tools` map (`argsText` → `args`, `result`, per-tool `status`), `childOrder`, `usage`, `durationMs`, and `error`. `ThreadDoc` carries `turns`, the node index, and `todos`. The fold that builds them, `apply(tree, event)`, lives in `@super-harness/shared` and runs identically on server and client.
+`NodeState` accumulates `status`, `reasoning`, `text`, an ordered `tools` map (`argsText` → `args`, `result`, per-tool `status`), `childOrder`, `usage`, `durationMs`, and `error`. `ThreadDoc` carries `turns`, the node index, and `todos`. The fold that builds them, `apply(tree, event)`, lives in `@super-harness/shared` and runs on the server (the Projector); clients skip the fold entirely — `subscribeTree` reassembles the tree straight from the Store snapshots and `diffTree` recovers an event stream from them.
 
 ### The event vocabulary
 
@@ -261,7 +263,7 @@ Every progress signal is a `HarnessEvent` — a zod discriminated union with a c
 `serve(harness, config)` (in `@super-harness/server`) wires a super-line server with two Store namespaces (`node`, `thread`) and the control-plane contract, subscribed to the harness bus:
 
 - **`Harness`** (in `@super-harness/core`) is the session runtime. `sendMessage` drives the supervisor node (or queues a follow-up on a busy thread); the `delegate` built-in spawns child nodes along the agent's `delegatesTo` edges (depth-gated by `maxDepth`); `ask_user` parks a suspension in the per-thread registry; gated tools park an approval; every event lands on the bus after the fold.
-- **run-node** drives one node's `agent.stream()` (or `agent.resumeStream()`), injecting a `RequestContext` carrying the harness runtime and the built-in toolset, and parking on `tool-call-approval` chunks until the gate resolves (`agent.sendToolApproval`).
+- **run-node** drives one node's `agent.stream()` (or `agent.resumeStream()`), injecting a `RequestContext` carrying the harness runtime and the built-in toolset. A `tool-call-approval` chunk suspends the run (the stream closes); run-node returns the parked approval and the Harness resolves it via `agent.approveToolCall`/`declineToolCall`, driving the returned continuation stream through the same node.
 - **chunk-adapter** maps each Mastra `fullStream` chunk to `HarnessEvent` bodies — and suppresses the parent-level tool chunks for a `delegate` call (the child node represents it).
 - **Projector** folds those events into one live tree per thread via `apply` — the harness's own copy backs `getTree`/`tree_changed`; `serve` runs a second fold into the Store-backed sink.
 - **sink** (`superlineTreeSink`, in `@super-harness/server`) is the durable write path: it `create`s each Resource (granted to the thread's principals) before `open`ing it, so a client that opens the Resource always finds a live, readable handle. The port it implements (`TreeSink`) is two methods — that's the whole seam a custom persistence layer fills.
@@ -294,7 +296,7 @@ Stores are durable through their backend. `storage: { type: 'sqlite', path }` (t
 
 ### A note on version skew
 
-The super-line ecosystem spans several independently-versioned packages. All of them are owned by `@super-harness/server` — one package.json pins a coherent set, and `@super-harness/core` imports none of them. The SQLite Store backend is still **dynamically imported** only when selected, so the `better-sqlite3` native build is only required if you use it.
+The super-line ecosystem spans several independently-versioned packages. The server-side set is owned by `@super-harness/server` (one package.json pins a coherent set); `@super-harness/shared` pins only `@super-line/core` for `defineContract`, the tui pins its own client-side set, and `@super-harness/core` imports none of them. The SQLite Store backend is still **dynamically imported** only when selected, so the `better-sqlite3` native build is only required if you use it.
 
 ## Terminal client
 
@@ -312,7 +314,7 @@ Flags:
 | `--headless` | auto if not a TTY | stdin/stdout shell instead of the cockpit. |
 | `--json` | off | Emit events as JSON (suppresses the human transcript). |
 | `--verbose` / `--full` | off | More detail per line / untruncated content. |
-| `--control <id>` | — | Control channel id. |
+| `--control <path>` | — | Headless control FIFO (`mkfifo`'d if missing): pipe commands via `echo "/send …" > <path>`; reopened after each writer, only `/quit` exits. |
 | `--spill-dir <path>` | `/tmp/super-harness-<pid>` | Where large tool payloads spill. |
 
 Commands (typed in the cockpit, or piped to headless stdin):
@@ -337,17 +339,22 @@ Headless status markers (on stdout):
 ```
 <<SPILL dir=...>>                          large payloads spill here
 <<READY>>                                  connected and joined
+<<CONTROL fifo=...>>                       control FIFO announced (with --control)
 <<TURN_START runId=...>>                   a turn began
 <<TURN_DONE tools=N errors=N tokens=N>>    a turn finished
-<<SUSPENDED tool=... request=...>>         an ask_user awaits /reply
+<<SUSPENDED tool=... request=... [schema=...]>>   an ask_user awaits /reply
 <<APPROVAL_REQUIRED tool=... args=...>>    a gated tool awaits /approve or /deny
+<<INFO ...>>                               notices (mode changes, follow-ups queued, …)
+<<ERROR ...>>                              connect/command failure
+<<DISCONNECTED>> / <<RECONNECTED>>         connection dropped / recovered (pending state resets)
+<<RESUME pnpm -F @super-harness/tui ...>>  printed on exit — the exact command to rejoin this thread
 ```
 
 ## Development
 
 ```bash
 pnpm install
-pnpm build          # tsup, all packages
+pnpm build          # tsup (core & server; shared/tui are source-run, no build step)
 pnpm test           # vitest, all packages
 pnpm typecheck      # tsc --noEmit
 pnpm lint           # oxlint

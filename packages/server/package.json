@@ -1,7 +1,7 @@
 {
   "name": "@super-harness/server",
   "version": "0.0.0",
-  "description": "Batteries-included super-line binding for Super Harness: createHarness wires a Controller to a super-line server with durable per-node/thread Stores, the wire contract, and HITL suspension broadcast.",
+  "description": "Batteries-included super-line binding for Super Harness: serve() exposes a core Harness over a super-line server with durable per-node/thread Stores, the wire contract, and HITL suspension/approval broadcast.",
   "keywords": [
     "agent",
     "agents",
