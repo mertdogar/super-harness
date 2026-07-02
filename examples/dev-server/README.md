@@ -1,9 +1,12 @@
 # @super-harness/dev-server
 
 A runnable super-harness server for local testing and iterative development — a
-supervisor that delegates to a `worker` subagent (live weather tool), wired
-through `createHarness` and served over a super-line WebSocket. The `tui` client
-(interactive or headless) connects to it.
+supervisor that delegates to a `worker` subagent (live weather tool), hosted by
+core's `createHarness` (with two demo modes, `chat` and `terse`, and thread
+management backed by Mastra Memory) and exposed over a super-line WebSocket via
+`serve()` from `@super-harness/server`. The `tui` client (interactive or
+headless) connects to it — try `/mode terse`, `/threads`, or queueing a second
+message while a turn is running.
 
 ## Run
 
