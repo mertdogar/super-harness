@@ -27,6 +27,13 @@ describe('chunk-adapter', () => {
     a.map({ type: 'finish', payload: { output: { usage: { totalTokens: 5 } } } })
     expect(a.usage?.totalTokens).toBe(5)
   })
+
+  it('maps tool-error to a settled tool_end so the call never sticks at input-available', () => {
+    const a = createChunkAdapter(new Set())
+    expect(a.map({ type: 'tool-error', payload: { toolCallId: 'c9', toolName: 'weather', error: new Error('boom') } })).toEqual([
+      { type: 'tool_end', toolCallId: 'c9', result: 'boom', isError: true },
+    ])
+  })
 })
 
 describe('projector', () => {
@@ -157,12 +164,15 @@ describe('harness: bus', () => {
     registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
     const harness = engine(registry)
 
-    const seen: Array<{ threadId: string; type: string }> = []
-    const unsub = harness.subscribe((threadId, e) => seen.push({ threadId, type: e.type }))
+    const seen: Array<{ threadId: string; type: string; task?: string }> = []
+    const unsub = harness.subscribe((threadId, e) =>
+      seen.push({ threadId, type: e.type, task: 'task' in e ? e.task : undefined }),
+    )
     await harness.sendMessage({ threadId: 't1', content: 'hello' })
 
     const types = seen.map((s) => s.type)
     expect(types[0]).toBe('node_start')
+    expect(seen[0].task).toBe('hello') // root turns carry the user message → tree is the full transcript
     expect(types[1]).toBe('tree_changed') // synthetic follows every node event
     expect(types).toContain('text_delta')
     expect(types).toContain('node_end')
@@ -288,6 +298,21 @@ describe('harness: suspension registry', () => {
     const registry = new Map<string, SubagentEntry>()
     registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
     const harness = engine(registry)
+    expect(() => harness.resume({ threadId: 't1', resumeData: {} })).toThrow('no parked suspension')
+  })
+
+  it('abort of a PARKED suspension settles its node as aborted in the tree', async () => {
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: suspendingRunner() })
+    const harness = engine(registry)
+    const res = await harness.sendMessage({ threadId: 't1', content: 'go' })
+    expect(res.status).toBe('suspended')
+
+    const rootId = res.status === 'suspended' ? res.suspension.nodeId : ''
+    expect(harness.getTree('t1')?.nodes[rootId]?.status).toBe('running') // parked, no node_end yet
+
+    harness.abort('t1')
+    expect(harness.getTree('t1')?.nodes[rootId]?.status).toBe('aborted') // settled — no phantom running turn
     expect(() => harness.resume({ threadId: 't1', resumeData: {} })).toThrow('no parked suspension')
   })
 

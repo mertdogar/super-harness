@@ -56,6 +56,11 @@ export function createChunkAdapter(suppressToolNames: ReadonlySet<string>): Chun
       case 'tool-result':
         if (suppressed.has(p.toolCallId)) return []
         return [{ type: 'tool_end', toolCallId: p.toolCallId, result: p.result, isError: !!p.isError }]
+      case 'tool-error':
+        // A tool whose execute() threw — without this the call stays
+        // input-available ("Running") in the tree forever.
+        if (suppressed.has(p.toolCallId)) return []
+        return [{ type: 'tool_end', toolCallId: p.toolCallId, result: errorMessage(p), isError: true }]
       case 'tool-call-suspended':
         self.suspension = {
           toolCallId: p.toolCallId,

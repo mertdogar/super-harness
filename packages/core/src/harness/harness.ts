@@ -241,6 +241,21 @@ export class Harness {
     // the follow-up queue are dropped — abort means stop everything.
     for (const gate of st.approvals.values()) gate.resolve({ approved: false, aborted: true })
     st.approvals.clear()
+    // A PARKED suspension's node never got a node_end (the turn already
+    // returned) — settle it in the tree, or every client sees a phantom
+    // running turn (and a phantom pending ask) forever.
+    if (!st.running) {
+      for (const runId of new Set([...st.suspensions.values()].map((s) => s.runId))) {
+        this.#emitNode(threadId, {
+          nodeId: runId,
+          parentNodeId: null,
+          depth: 0,
+          agentType: this.cfg.supervisorType,
+          type: 'node_end',
+          reason: 'aborted',
+        })
+      }
+    }
     st.suspensions.clear()
     if (st.queue.length > 0) {
       st.queue = []
@@ -303,11 +318,17 @@ export class Harness {
           emit: (e) => this.#emitNode(threadId, e),
           suppressToolNames: SUPPRESS,
           emitStart,
+          task: input || undefined,
         })
         text += res.text
         if (res.approval) {
           const decision = await this.#decideApproval(threadId, node.nodeId, res.approval)
-          if (decision.aborted) return { status: 'error', error: 'aborted', text }
+          if (decision.aborted) {
+            // The stream closed on the approval chunk with no node_end and no
+            // continuation is coming — settle the node in the tree.
+            this.#emitNode(threadId, { ...node, type: 'node_end', reason: 'aborted' })
+            return { status: 'error', error: 'aborted', text }
+          }
           const continuation = await this.cfg.resolveToolCall?.({
             threadId,
             resourceId: run.resource,
