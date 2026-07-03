@@ -52,7 +52,7 @@
     "@super-harness/core": "workspace:*",
     "@super-harness/shared": "workspace:*",
     "@super-line/core": "^0.8.0",
-    "@super-line/server": "^0.8.0",
+    "@super-line/server": "^0.9.0",
     "@super-line/store-memory": "^0.8.0",
     "@super-line/store-sqlite": "^0.3.0"
   },

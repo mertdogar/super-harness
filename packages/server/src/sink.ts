@@ -17,10 +17,14 @@ import type { TreeSink, ThreadDoc } from '@super-harness/core'
 interface StoreNs {
   create?(id: string, data: unknown, accessRules?: unknown): Promise<void>
   read?(id: string): Promise<{ data?: unknown } | undefined>
-  write(id: string, data: unknown): Promise<void>
+  write(id: string, data: unknown, opts?: { origin?: string }): Promise<void>
 }
 
 const DEFAULT_FLUSH_MS = 150
+
+// Tags the sink's co-writes for Control Center attribution (echo-break is
+// unaffected — no client shares this origin). Needs @super-line/server >= 0.9.0.
+const ORIGIN = 'harness'
 
 // `nodeStore`/`threadStore` are `srv.store('node')` / `srv.store('thread')`.
 // grantTo() = principals allowed to READ, evaluated at each Resource creation
@@ -70,7 +74,7 @@ export function superlineTreeSink(opts: {
     const flush = (): void => {
       dirty = false
       void ensured!
-        .then(() => ns.write(id, transform(latest)))
+        .then(() => ns.write(id, transform(latest), { origin: ORIGIN }))
         .catch((e) => console.error('[sink] write failed', e))
     }
 
