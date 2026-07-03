@@ -57,13 +57,18 @@
     "@super-line/store-sqlite": "^0.3.0"
   },
   "peerDependencies": {
-    "@mastra/core": "^1.49.0-alpha.2"
+    "@mastra/core": "^1.49.0-alpha.2",
+    "@super-line/store-pglite": "^0.1.0"
+  },
+  "peerDependenciesMeta": {
+    "@super-line/store-pglite": { "optional": true }
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
     "@libsql/client": "^0.17.4",
     "@mastra/core": "1.49.0-alpha.2",
     "@super-line/client": "^0.7.0",
+    "@super-line/store-pglite": "^0.1.0",
     "@super-line/transport-websocket": "^0.5.0",
     "vitest": "^4.1.2"
   },

@@ -69,5 +69,27 @@ structural subsets of the drivers, so `@super-harness/server` imports neither
 `@libsql/client` nor `pg-promise` — the app owns those. `libsqlStoreServer` /
 `pgStoreServer` are also exported directly if you want to open a Store yourself.
 
+### Multi-node (Postgres + Electric)
+
+For a horizontally-scaled deployment where Postgres + Electric are already the
+fan-out infra, use `@super-line/store-pglite` (an **optional peer** — install it
+only for this backend): central Postgres for writes/reads/ACL, per-node
+Electric-synced PGlite replicas whose `live.changes` feed drives the client
+fan-out.
+
+```ts
+// share the Postgres URL your app already uses; point at the Electric shape API
+await serve(harness, {
+  storage: { type: 'pglite', pgUrl: process.env.DATABASE_URL, electricUrl: 'http://electric:3000/v1/shape' },
+  transports,
+})
+```
+
+The tree lands in `superline_node` / `superline_thread` tables. Live updates
+require an Electric service in front of the Postgres — a write round-trips
+central PG → Electric → every node's replica → `onChange`. Because the sink
+persists whole node docs on a **trailing debounce** (see below), a fast token
+stream lands ≤ 1 write per `flushMs` (default 150 ms) rather than one per token.
+
 `close()` detaches the harness bus subscription; tear the super-line server
 down by closing its transports/http server.

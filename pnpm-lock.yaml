@@ -479,6 +479,9 @@ importers:
       '@super-line/client':
         specifier: ^0.7.0
         version: 0.7.0
+      '@super-line/store-pglite':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@super-line/transport-websocket':
         specifier: ^0.5.0
         version: 0.5.0
@@ -715,6 +718,20 @@ packages:
 
   '@dimforge/rapier2d-simd-compat@0.17.3':
     resolution: {integrity: sha512-bijvwWz6NHsNj5e5i1vtd3dU2pDhthSaTUZSh14DUGGKJfw8eMnlWZsxwHBxB/a3AXVNDjL9abuHw1k9FGR+jg==}
+
+  '@electric-sql/client@1.5.23':
+    resolution: {integrity: sha512-3b0ddP8/J7dIHNFwoXzuFcow40aXvKtGss1rpiF5H4AGvuYWHR7A/hCe7xE86wbvdJP3PNcpDAmtUNF1cc+vlQ==}
+    hasBin: true
+
+  '@electric-sql/experimental@1.0.14':
+    resolution: {integrity: sha512-Wpv9UC7r4JYnQO4GbtQve7SVIX/VcBwAP12Xx11ObK2TBI+NJHtDRimUEKKQorq9Kr6yTAJ3BYOKCINxFsbDIg==}
+    peerDependencies:
+      '@electric-sql/client': 1.0.14
+
+  '@electric-sql/pglite-sync@0.6.5':
+    resolution: {integrity: sha512-qh+5S0XvMqQP0Lzcaae/puu9OpVb2tWmXFV9rOTOjlj3h48cHv2CSoWb80aWgzcubl3QbekFVj6RMhtLTr9p0Q==}
+    peerDependencies:
+      '@electric-sql/pglite': 0.5.4
 
   '@electric-sql/pglite@0.5.4':
     resolution: {integrity: sha512-yYZUyyXrHU7tPlCjwZQJ6hIG9DscdCCn7Uk0mYKwC1FeHX286AbcmFveMiRBEak8e9iPupjsoVImN3yJZVed2g==}
@@ -1302,6 +1319,9 @@ packages:
 
   '@mermaid-js/parser@1.2.0':
     resolution: {integrity: sha512-oYPyv8A4As1yH5Bx+04iQEQxXuIQDe0GKCNSRgao6z8AM9jixXIfP0vsppRLvGf+nKIOb9/LdpWA4YuJiVvESA==}
+
+  '@microsoft/fetch-event-source@2.0.1':
+    resolution: {integrity: sha512-W6CLUJ2eBMw3Rec70qrsEW0jOm/3twwJv21mrmj2yORiaVmVYGS4sSS5yUwvQc1ZlDLYGPnClVWmUUMagKNsfA==}
 
   '@modelcontextprotocol/sdk@1.29.0':
     resolution: {integrity: sha512-zo37mZA9hJWpULgkRpowewez1y6ML5GsXJPY8FI0tBBCd77HEvza4jDqRKOXgHNn867PVGCyTdzqpz0izu5ZjQ==}
@@ -2655,6 +2675,10 @@ packages:
 
   '@super-line/store-memory@0.8.0':
     resolution: {integrity: sha512-RaKzVH8RSjiQD4M/ALq+bEDPr3X9SPwCNk5pLQjoQYutuSFYmH1EFSJ7ybzml2clVSWwvJp/xNjei0K7xNlWUw==}
+    engines: {node: '>=18'}
+
+  '@super-line/store-pglite@0.1.0':
+    resolution: {integrity: sha512-HSMrsBKUU/19rxyszw651UhRxmy5A8+AVkiSyn8sm9gQ4Mv+XYI/DV5dqlAM4tNv1vKWr8kMp2itDaP1frfMTQ==}
     engines: {node: '>=18'}
 
   '@super-line/store-sqlite@0.3.0':
@@ -4520,6 +4544,10 @@ packages:
     resolution: {integrity: sha512-vuwillviilfKZsg0VGj5R/YwwcHx4SLsIOI/7K6mQkWx+l5cUHTjj5g0AasTBcyXsbfTgrwsUNmVUb5xVwyPwg==}
     engines: {node: ^10 || ^12 || >=14}
 
+  postgres@3.4.9:
+    resolution: {integrity: sha512-GD3qdB0x1z9xgFI6cdRD6xu2Sp2WCOEoe3mtnyB5Ee0XrrL5Pe+e4CCnJrRMnL1zYtRDZmQQVbvOttLnKDLnaw==}
+    engines: {node: '>=12'}
+
   posthog-node@5.39.2:
     resolution: {integrity: sha512-5piMedjlQ2x+UKLvHWTC5ls5/T1dDZKE1Pu5AKkYh9EkbZOjvu0cac6lWFB7mgbGkKQ0I1bhbjDx1QAYRJ7Unw==}
     engines: {node: ^20.20.0 || >=22.22.0}
@@ -5592,6 +5620,24 @@ snapshots:
   '@dimforge/rapier2d-simd-compat@0.17.3':
     optional: true
 
+  '@electric-sql/client@1.5.23':
+    dependencies:
+      '@microsoft/fetch-event-source': 2.0.1
+    optionalDependencies:
+      '@rollup/rollup-darwin-arm64': 4.62.2
+
+  '@electric-sql/experimental@1.0.14(@electric-sql/client@1.5.23)':
+    dependencies:
+      '@electric-sql/client': 1.5.23
+    optionalDependencies:
+      '@rollup/rollup-darwin-arm64': 4.62.2
+
+  '@electric-sql/pglite-sync@0.6.5(@electric-sql/pglite@0.5.4)':
+    dependencies:
+      '@electric-sql/client': 1.5.23
+      '@electric-sql/experimental': 1.0.14(@electric-sql/client@1.5.23)
+      '@electric-sql/pglite': 0.5.4
+
   '@electric-sql/pglite@0.5.4': {}
 
   '@emnapi/core@1.11.1':
@@ -6164,6 +6210,8 @@ snapshots:
   '@mermaid-js/parser@1.2.0':
     dependencies:
       '@chevrotain/types': 11.1.2
+
+  '@microsoft/fetch-event-source@2.0.1': {}
 
   '@modelcontextprotocol/sdk@1.29.0(zod@4.4.3)':
     dependencies:
@@ -7352,6 +7400,13 @@ snapshots:
   '@super-line/store-memory@0.8.0':
     dependencies:
       '@super-line/core': 0.8.0
+
+  '@super-line/store-pglite@0.1.0':
+    dependencies:
+      '@electric-sql/pglite': 0.5.4
+      '@electric-sql/pglite-sync': 0.6.5(@electric-sql/pglite@0.5.4)
+      '@super-line/core': 0.8.0
+      postgres: 3.4.9
 
   '@super-line/store-sqlite@0.3.0':
     dependencies:
@@ -9531,6 +9586,8 @@ snapshots:
       nanoid: 3.3.15
       picocolors: 1.1.1
       source-map-js: 1.2.1
+
+  postgres@3.4.9: {}
 
   posthog-node@5.39.2:
     dependencies:

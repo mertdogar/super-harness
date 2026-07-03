@@ -19,6 +19,20 @@ WebSocket e2e through `serve()` with a fake-runner Harness.
   `stores.test.ts` runs the suite against real `@libsql/client` (`:memory:`) and
   real Postgres via PGlite — SQL dialect is the whole risk surface, so fakes
   wouldn't earn their keep.
+- **The sink writes via `handle.write()`, not the `open()` co-writer**
+  (`sink.ts`): self-clustering stores (store-pglite) have no `open()`, and a
+  whole-doc sink never needs the replica's getSnapshot/merge. Stream events fire
+  per token, so writes are **coalesced per resource on a trailing debounce**
+  (`flushMs`, default 150) — the first event `create()`s the Resource, later
+  events flush the latest doc at most once per interval, and the final doc always
+  lands. Clients render from the store snapshot + `onChange`; a reload reads the
+  store. Cadence is app policy (see the store-pglite handoff §1 in super-line).
+  `write()` currently tags co-writes `'server'` (not `'harness'`) until super-line
+  ships an `origin` arg — cosmetic (inspector attribution only; echo-break is
+  unaffected since no client shares that origin).
+- **`pglite` backend is an optional peer** (`@super-line/store-pglite`),
+  dynamically imported only when `storage.type === 'pglite'` — like the sqlite
+  backend. Needs a running Electric service for live `onChange`.
 - **`deleteThread` purges the tree** (`thread_deleted` in `serve.ts`): reads the
   durable thread doc, deletes every node doc it lists + the thread doc. Without
   this the docs outlive the thread and a reused threadId resurrects the deleted

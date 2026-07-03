@@ -30,11 +30,15 @@ export interface ServeConfig {
   // and needs better-sqlite3 built (`pnpm approve-builds`); memory is for
   // tests/dev. libsql/postgres write superline_* tables into a database the
   // app already owns — pass the same @libsql/client you give LibSQLStore, or
-  // PostgresStore's public `storage.db`.
+  // PostgresStore's public `storage.db`. pglite is the multi-node choice:
+  // central Postgres + Electric-synced replicas (`@super-line/store-pglite`, an
+  // optional peer) — pass the Postgres URL your app uses and the Electric shape
+  // endpoint.
   storage?:
     | { type: 'sqlite' | 'memory'; path?: string }
     | { type: 'libsql'; client: LibsqlClientLike }
     | { type: 'postgres'; db: PgDbLike }
+    | { type: 'pglite'; pgUrl: string; electricUrl?: string }
   transports?: ServerTransport[]
   authenticate?: (handshake: unknown) => { role: 'user'; ctx: { userId: string } }
   // Control Center inspector (read-only, UNAUTHENTICATED — dev/trusted only).
@@ -63,6 +67,18 @@ export async function serve(harness: Harness, config: ServeConfig = {}): Promise
         return libsqlStoreServer({ client: storage.client, table: `superline_${ns}` })
       case 'postgres':
         return pgStoreServer({ db: storage.db, table: `superline_${ns}` })
+      case 'pglite': {
+        // Self-clustering: central Postgres + per-node Electric-synced replica.
+        // Optional peer — only loaded when selected. onChange fans from the
+        // replica's live.changes, so an Electric shape (electricUrl) is needed
+        // for live updates across nodes.
+        const { pgliteStoreServer } = await import('@super-line/store-pglite')
+        return (await pgliteStoreServer({
+          pgUrl: storage.pgUrl,
+          electricUrl: storage.electricUrl,
+          table: `superline_${ns}`,
+        })) as never
+      }
       default: {
         const { sqliteStoreServer } = await import('@super-line/store-sqlite')
         return sqliteStoreServer({ file: storage.path ?? './harness.db', table: ns } as never)
