@@ -1,0 +1,17 @@
+# Docker build context = repo root (examples/web images). Keep it lean: ship
+# source + manifests + lockfile, do a fresh `pnpm install` in the image.
+.git
+**/node_modules
+**/dist
+**/*.log
+**/*.tsbuildinfo
+
+# Local databases / build caches
+**/dev.db
+**/dev.db-*
+**/*.sqlite
+
+# Secrets never enter the image — passed at runtime via env_file
+.env
+.env.*
+!.env.example

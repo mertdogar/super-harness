@@ -22,6 +22,48 @@ Build the client (`pnpm -F @super-harness/web-client build`) and the server
 serves it statically — one process at http://localhost:4111. The dist check
 runs at boot, so restart the server after the first build.
 
+By default (`SUPER_HARNESS_STORAGE` unset → `libsql`) both Mastra's memory and
+the durable tree land in one `dev.db`. The other two modes point at a central
+Postgres — see below.
+
+## Multi-node (docker + store-pglite)
+
+`docker-compose.yml` boots the full multi-node topology that end-to-end verifies
+`@super-line/store-pglite`: central **Postgres** + **Electric**, **3 nodes**, a
+**vite** frontend, and the super-line **Control Center**.
+
+```bash
+docker compose up --build      # needs AI_GATEWAY_API_KEY in the repo-root .env
+```
+
+One central Postgres holds **both** ground truths — Mastra's `mastra_*`
+(threads/messages/mode, via `@mastra/pg`) and super-line's
+`superline_node`/`superline_thread` (the tree). Electric streams the tree tables
+into each node's in-memory **PGlite replica**; Mastra reads/writes central PG
+directly. So any node sees the same threads and streams the same tree.
+
+Open **http://localhost:5173** and pick the node from the **selectbox in the
+header** (node-1/2/3 → `ws://localhost:8801‑8803`; the selectbox appears because
+the frontend container sets `VITE_NODE_BASE_PORT`). To see the store-pglite proof
+in one window: drive a conversation on **node-1**, then flip the selectbox to
+**node-2** — the client reconnects and the *same* thread re-renders from node-2's
+replica. That round-trip (`node-1 → Postgres → Electric → node-2`) **is** the
+proof. (Node and thread aren't in the URL; resume a past thread from the sidebar —
+threads are central-Postgres-backed, so every node lists them all.)
+
+The **Control Center** on http://localhost:8081 taps node-1's inspector; repoint
+it to `ws://localhost:8802/super-line` (etc.) from its Settings page to inspect
+another node.
+
+Switch backends with `SUPER_HARNESS_STORAGE`: `pglite` (compose default),
+`postgres` (central PG, no Electric — super-line reuses Mastra's pool), or
+`libsql` (single-node dev). `postgres`/`pglite` require `PG_URL`; `pglite` also
+`ELECTRIC_URL`.
+
+> If the image build fails on `better-sqlite3` (a transitive dep pulled in by the
+> sqlite Store backend, unused here), the base image needs build tools — add
+> `python3 make g++` to `Dockerfile` before `pnpm install`.
+
 ## Inspector (super-line Control Center)
 
 The server runs with the super-line inspector enabled (read-only wire

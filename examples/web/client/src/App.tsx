@@ -1,4 +1,3 @@
-import { useEffect } from "react"
 import { useHarness, useHarnessClient } from "@super-harness/react"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ApprovalDialog } from "@/components/approval-dialog"
@@ -7,18 +6,21 @@ import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
 
-export default function App() {
+export default function App({
+  nodes,
+  node,
+  onNodeChange,
+}: {
+  nodes: number[]
+  node: number
+  onNodeChange: (n: number) => void
+}) {
   const state = useHarness()
   const client = useHarnessClient()
   const activeThread = state.threads.find((t) => t.id === state.threadId)
   // No "get thread mode" read on the contract: show the default until a live
   // modeChanged (or our own switch) corrects it.
   const modeId = state.modeId ?? state.defaultModeId
-
-  // Keep ?thread= in sync so a refresh resumes the same conversation.
-  useEffect(() => {
-    history.replaceState(null, "", `?thread=${state.threadId}`)
-  }, [state.threadId])
 
   return (
     <SidebarProvider>
@@ -33,6 +35,20 @@ export default function App() {
             <Badge variant={state.connected ? "secondary" : "destructive"}>
               {state.connected ? "connected" : "offline"}
             </Badge>
+            {nodes.length > 1 && (
+              <Select value={String(node)} onValueChange={(v) => onNodeChange(Number(v))}>
+                <SelectTrigger size="sm" className="w-24">
+                  <SelectValue placeholder="node" />
+                </SelectTrigger>
+                <SelectContent>
+                  {nodes.map((n) => (
+                    <SelectItem key={n} value={String(n)}>
+                      node-{n}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
             {state.modes.length > 0 && (
               <Select value={modeId} onValueChange={(v) => void client.setMode(v)}>
                 <SelectTrigger size="sm" className="w-28">
