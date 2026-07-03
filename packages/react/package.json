@@ -1,0 +1,80 @@
+{
+  "name": "@super-harness/react",
+  "version": "0.0.0",
+  "description": "Headless React client for Super Harness: a framework-free HarnessClient (join, live tree via subscribeTree, ask_user/approval state machine, threads, modes) plus provider + hooks bindings. No components, no styling — bring your own UI.",
+  "keywords": [
+    "agent",
+    "agents",
+    "multi-agent",
+    "ai",
+    "llm",
+    "react",
+    "hooks",
+    "headless",
+    "streaming",
+    "harness",
+    "super-line",
+    "typescript"
+  ],
+  "homepage": "https://mertdogar.github.io/super-harness/",
+  "bugs": "https://github.com/mertdogar/super-harness/issues",
+  "license": "MIT",
+  "author": "Mert Dogar",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mertdogar/super-harness.git",
+    "directory": "packages/react"
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./client": "./src/harness-client.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js",
+        "require": "./dist/index.cjs"
+      },
+      "./client": {
+        "types": "./dist/harness-client.d.ts",
+        "import": "./dist/harness-client.js",
+        "require": "./dist/harness-client.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "prepublishOnly": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@super-harness/shared": "workspace:*",
+    "@super-line/client": "^0.7.0",
+    "@super-line/store-memory": "^0.8.0",
+    "@super-line/transport-websocket": "^0.5.0"
+  },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.0",
+    "react": "^19.2.0",
+    "vitest": "^4.1.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
