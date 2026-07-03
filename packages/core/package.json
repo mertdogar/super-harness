@@ -1,7 +1,7 @@
 {
   "name": "@super-harness/core",
   "version": "0.0.0",
-  "description": "Transport-free harness session runtime for Super Harness: createHarness hosts a tree of Mastra Agents with delegation edges, full-fidelity streaming events, HITL suspension/approval gating, per-thread modes, and thread management \u2014 no super-line.",
+  "description": "Transport-free harness session runtime for Super Harness: createHarness hosts a tree of Mastra Agents with delegation edges, full-fidelity streaming events, HITL suspension/approval gating, per-thread modes, and thread management — no super-line.",
   "keywords": [
     "agent",
     "agents",
@@ -50,6 +50,7 @@
   },
   "dependencies": {
     "@super-harness/shared": "workspace:*",
+    "@super-line/core": "^0.8.0",
     "nanoid": "^5.1.7",
     "zod": "^4.4.3"
   },

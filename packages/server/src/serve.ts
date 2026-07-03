@@ -8,7 +8,7 @@
 // so every one of a resource's tabs stays in sync. Contract requests map 1:1
 // onto Harness methods.
 
-import type { ServerTransport } from '@super-line/core'
+import type { ServerTransport, Adapter } from '@super-line/core'
 import { createSuperLineServer } from '@super-line/server'
 import { memoryStoreServer } from '@super-line/store-memory'
 import { contract } from '@super-harness/shared'
@@ -42,6 +42,7 @@ export interface ServeConfig {
     | { type: 'postgres'; db: PgDbLike }
     | { type: 'pglite'; pgUrl: string; electricUrl?: string }
   transports?: ServerTransport[]
+  adapter?: Adapter
   authenticate?: (handshake: unknown) => { role: 'user'; ctx: { userId: string; resourceId?: string } }
   // Control Center inspector (read-only, UNAUTHENTICATED — dev/trusted only).
   // The WS transport must ALSO be created with `inspector: true` to negotiate
@@ -113,6 +114,7 @@ export async function serve(harness: Harness, config: ServeConfig = {}): Promise
       server.room(`resource:${resourceOf(ctx)}`).add(conn as never),
     stores: { node: await backend('node'), thread: await backend('thread') },
     inspector: config.inspector ?? false,
+    adapter: config.adapter,
   } as never)
 
   const threadPrincipals = new Map<string, Set<string>>()
