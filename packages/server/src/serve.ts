@@ -30,6 +30,10 @@ export interface ServeConfig {
   storage?: { type: 'sqlite' | 'memory'; path?: string }
   transports?: ServerTransport[]
   authenticate?: (handshake: unknown) => { role: 'user'; ctx: { userId: string } }
+  // Control Center inspector (read-only, UNAUTHENTICATED — dev/trusted only).
+  // The WS transport must ALSO be created with `inspector: true` to negotiate
+  // the `superline.inspector.v1` subprotocol.
+  inspector?: boolean | { redact?: string[] }
 }
 
 export interface HarnessServer {
@@ -55,6 +59,7 @@ export async function serve(harness: Harness, config: ServeConfig = {}): Promise
       ((h: unknown) => ({ role: 'user' as const, ctx: { userId: (h as any)?.query?.userId ?? 'local' } })),
     identify: (conn: { ctx: { userId: string } }) => conn.ctx.userId,
     stores: { node: await backend('node'), thread: await backend('thread') },
+    inspector: config.inspector ?? false,
   } as never)
 
   const threadPrincipals = new Map<string, Set<string>>()

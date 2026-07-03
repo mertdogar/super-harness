@@ -33,6 +33,9 @@ const { server, close } = await serve(harness, {
   storage: { type: 'sqlite', path: './harness.db' },   // default; 'memory' for tests
   transports: [webSocketServerTransport({ server: httpServer, path: '/super-line' })],
   // authenticate?: (handshake) => ({ role: 'user', ctx: { userId } })
+  // inspector?: true — super-line Control Center telemetry (read-only but
+  // UNAUTHENTICATED; dev/trusted networks only). Must ALSO be set on the WS
+  // transport. View: npx @super-line/control-center --url ws://localhost:4111/super-line
 })
 httpServer.listen(4111)
 ```
