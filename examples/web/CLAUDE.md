@@ -10,10 +10,12 @@ Two workspace packages (glob `examples/web/*`): `server/` (Hono +
 - WS transport attaches to the node server **returned by** `@hono/node-server`'s
   `serve()` — upgrade requests on `/super-line` never reach Hono routing, so no
   Hono WS adapter is involved.
-- Store storage is `sqlite` (`harness.db`) — the tree IS durable here, unlike
-  dev-server; page refresh / late joiners rebuild full history. `dev.db` is the
-  Mastra memory (threads, recall, per-thread mode). Both gitignored; delete to
-  reset.
+- **One database.** The same `@libsql/client` (`file:./dev.db`) backs both
+  Mastra's `LibSQLStore` (threads, recall, per-thread mode) AND `serve()`'s
+  durable tree Stores (`storage: { type: 'libsql', client }` → `superline_node`
+  / `superline_thread` tables). The tree IS durable here, unlike dev-server;
+  page refresh / late joiners rebuild full history. Gitignored; delete `dev.db`
+  to reset everything. (There is no `harness.db` anymore.)
 - `send_report` (supervisor tool) is fake — it exists to exercise the approval
   flow (`'ask'`). Don't make it real.
 - The super-line inspector is ON by default (`SUPER_HARNESS_INSPECTOR=0`

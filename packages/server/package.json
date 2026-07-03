@@ -60,6 +60,8 @@
     "@mastra/core": "^1.49.0-alpha.2"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@libsql/client": "^0.17.4",
     "@mastra/core": "1.49.0-alpha.2",
     "@super-line/client": "^0.7.0",
     "@super-line/transport-websocket": "^0.5.0",

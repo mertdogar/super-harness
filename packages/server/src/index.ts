@@ -3,3 +3,4 @@
 // and client view live in @super-harness/shared.
 export { serve, type ServeConfig, type HarnessServer } from './serve'
 export { superlineTreeSink } from './sink'
+export { libsqlStoreServer, pgStoreServer, type LibsqlClientLike, type PgDbLike } from './stores'

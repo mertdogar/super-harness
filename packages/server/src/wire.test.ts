@@ -11,7 +11,7 @@ import { createSuperLineClient } from '@super-line/client'
 import { webSocketServerTransport, webSocketClientTransport } from '@super-line/transport-websocket'
 import { memoryStoreClient } from '@super-line/store-memory'
 import { contract, diffTree, emptyTree, subscribeTree, type ClientTree, type HarnessEvent } from '@super-harness/shared'
-import { Harness, type SubagentEntry } from '@super-harness/core'
+import { Harness, type SubagentEntry, type ThreadRecord, type ThreadStore } from '@super-harness/core'
 import type { AgentRunner, NodeEnvelope, HarnessRuntime, ChunkLike } from '@super-harness/core'
 import { serve } from './serve'
 
@@ -34,7 +34,7 @@ const fakeRunner =
     })(),
   })
 
-function buildHarness(): Harness {
+function buildHarness(threads?: ThreadStore): Harness {
   const registry = new Map<string, SubagentEntry>()
   registry.set('supervisor', {
     agentType: 'supervisor',
@@ -49,7 +49,22 @@ function buildHarness(): Harness {
       { type: 'text-delta', payload: { text: 'report' } },
     ]),
   })
-  return new Harness({ supervisorType: 'supervisor', registry, maxDepth: 3 })
+  return new Harness({ supervisorType: 'supervisor', registry, maxDepth: 3, threads })
+}
+
+function fakeThreadStore(): ThreadStore {
+  const rows = new Map<string, ThreadRecord>()
+  return {
+    createThread: async ({ threadId, resourceId, title }) => {
+      const t = { id: threadId ?? `t${rows.size}`, resourceId, title }
+      rows.set(t.id, t)
+      return t
+    },
+    getThreadById: async ({ threadId }) => rows.get(threadId) ?? null,
+    saveThread: async ({ thread }) => rows.set(thread.id, thread),
+    deleteThread: async (threadId) => void rows.delete(threadId),
+    listThreads: async () => ({ threads: [...rows.values()] }),
+  }
 }
 
 let cleanup: (() => void) | null = null
@@ -188,5 +203,36 @@ describe('wire (serve() over ws, via the Store)', () => {
       text = rootId ? tree!.nodes[rootId]?.text || undefined : undefined
     }
     expect(text).toBe('resumed:yes')
+  })
+
+  it('deleteThread purges the durable tree docs (thread + every node)', async () => {
+    const harness = buildHarness(fakeThreadStore())
+    const { server, close } = await serve(harness, { storage: { type: 'memory' } })
+    cleanup = close
+
+    const threadStore = server.store('thread') as unknown as {
+      read(id: string): Promise<{ data?: { nodes?: Record<string, unknown> } } | undefined>
+    }
+    const nodeStore = server.store('node') as unknown as { read(id: string): Promise<unknown> }
+
+    await harness.threads.create({ threadId: 'td' })
+    await harness.sendMessage({ threadId: 'td', content: 'weather?' })
+
+    // Sink writes are fire-and-forget — wait until the delegated turn landed.
+    let doc: Awaited<ReturnType<typeof threadStore.read>>
+    for (let i = 0; i < 200; i++) {
+      doc = await threadStore.read('td')
+      if (Object.keys(doc?.data?.nodes ?? {}).length >= 2) break
+      await sleep(10)
+    }
+    const nodeIds = Object.keys(doc?.data?.nodes ?? {})
+    expect(nodeIds).toContain('c1')
+    expect(await nodeStore.read('c1')).toBeTruthy()
+
+    await harness.threads.delete('td')
+    for (let i = 0; i < 200 && (await threadStore.read('td')); i++) await sleep(10)
+
+    expect(await threadStore.read('td')).toBeUndefined()
+    for (const id of nodeIds) expect(await nodeStore.read(id)).toBeUndefined()
   })
 })

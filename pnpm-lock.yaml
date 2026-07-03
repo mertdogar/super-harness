@@ -364,6 +364,9 @@ importers:
       '@hono/node-server':
         specifier: ^1.19.12
         version: 1.19.14(hono@4.12.27)
+      '@libsql/client':
+        specifier: ^0.17.4
+        version: 0.17.4
       '@mastra/core':
         specifier: 1.49.0-alpha.2
         version: 1.49.0-alpha.2(express@5.2.1)(zod@4.4.3)
@@ -464,6 +467,12 @@ importers:
         specifier: ^0.3.0
         version: 0.3.0
     devDependencies:
+      '@electric-sql/pglite':
+        specifier: ^0.5.4
+        version: 0.5.4
+      '@libsql/client':
+        specifier: ^0.17.4
+        version: 0.17.4
       '@mastra/core':
         specifier: 1.49.0-alpha.2
         version: 1.49.0-alpha.2(express@5.2.1)(zod@4.4.3)
@@ -706,6 +715,9 @@ packages:
 
   '@dimforge/rapier2d-simd-compat@0.17.3':
     resolution: {integrity: sha512-bijvwWz6NHsNj5e5i1vtd3dU2pDhthSaTUZSh14DUGGKJfw8eMnlWZsxwHBxB/a3AXVNDjL9abuHw1k9FGR+jg==}
+
+  '@electric-sql/pglite@0.5.4':
+    resolution: {integrity: sha512-yYZUyyXrHU7tPlCjwZQJ6hIG9DscdCCn7Uk0mYKwC1FeHX286AbcmFveMiRBEak8e9iPupjsoVImN3yJZVed2g==}
 
   '@emnapi/core@1.11.1':
     resolution: {integrity: sha512-RSvbQmHzdKzNsLYa/wHrbc3KN4sYLKAdPZxqiM2HATqv/SBk2/ENSHpvXGaLOMcsAyz0poEGqkmmKYG3OWiJEQ==}
@@ -5579,6 +5591,8 @@ snapshots:
 
   '@dimforge/rapier2d-simd-compat@0.17.3':
     optional: true
+
+  '@electric-sql/pglite@0.5.4': {}
 
   '@emnapi/core@1.11.1':
     dependencies:

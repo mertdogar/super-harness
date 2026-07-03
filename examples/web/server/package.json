@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.3",
     "@hono/node-server": "^1.19.12",
+    "@libsql/client": "^0.17.4",
     "@mastra/core": "1.49.0-alpha.2",
     "@mastra/libsql": "^1.14.3",
     "@mastra/memory": "^1.22.0",

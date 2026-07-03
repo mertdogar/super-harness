@@ -41,9 +41,14 @@ httpServer.listen(4111)
 
 - The default `authenticate` trusts a `userId` query param — replace it for
   anything beyond localhost.
-- sqlite storage needs `better-sqlite3`'s native build — allowlist it for your
-  package manager (pnpm: `allowBuilds` in `pnpm-workspace.yaml`, or
-  `pnpm approve-builds`).
+- sqlite storage owns its own file and needs `better-sqlite3`'s native build —
+  allowlist it for your package manager (pnpm: `allowBuilds` in
+  `pnpm-workspace.yaml`, or `pnpm approve-builds`).
+- To reuse a database the app already has (no second file, no native build),
+  pass the live connection: `storage: { type: 'libsql', client }` (the same
+  `@libsql/client` you give `LibSQLStore`) or `storage: { type: 'postgres', db }`
+  (`PostgresStore`'s public `storage.db`). The tree lands in `superline_node` /
+  `superline_thread` tables beside the app's own.
 - What goes where: tree state → per-node/per-thread **Stores**; ephemeral
   signals (`suspended`, `approvalRequired`, `modeChanged`, `followUpQueued`) →
   room events on `thread:{id}`; actions → contract requests. `close()` only

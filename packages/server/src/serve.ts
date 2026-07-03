@@ -11,6 +11,7 @@ import { memoryStoreServer } from '@super-line/store-memory'
 import { contract } from '@super-harness/shared'
 import { Projector, type Harness, type HarnessEvent } from '@super-harness/core'
 import { superlineTreeSink } from './sink'
+import { libsqlStoreServer, pgStoreServer, type LibsqlClientLike, type PgDbLike } from './stores'
 
 const SESSION_EVENTS = new Set([
   'suspended',
@@ -24,10 +25,15 @@ const SESSION_EVENTS = new Set([
 ])
 
 export interface ServeConfig {
-  // Durable per-node/thread Store backend. sqlite (default) is the decided
-  // durable choice; memory is for tests/dev. sqlite needs better-sqlite3 built
-  // (`pnpm approve-builds`).
-  storage?: { type: 'sqlite' | 'memory'; path?: string }
+  // Durable per-node/thread Store backend. sqlite (default) owns its own file
+  // and needs better-sqlite3 built (`pnpm approve-builds`); memory is for
+  // tests/dev. libsql/postgres write superline_* tables into a database the
+  // app already owns — pass the same @libsql/client you give LibSQLStore, or
+  // PostgresStore's public `storage.db`.
+  storage?:
+    | { type: 'sqlite' | 'memory'; path?: string }
+    | { type: 'libsql'; client: LibsqlClientLike }
+    | { type: 'postgres'; db: PgDbLike }
   transports?: ServerTransport[]
   authenticate?: (handshake: unknown) => { role: 'user'; ctx: { userId: string } }
   // Control Center inspector (read-only, UNAUTHENTICATED — dev/trusted only).
@@ -44,12 +50,23 @@ export interface HarnessServer {
 }
 
 export async function serve(harness: Harness, config: ServeConfig = {}): Promise<HarnessServer> {
+  // Distinct tables per namespace — sharing one table would let a node id and
+  // a thread id collide and silently clobber each other's doc. The shared-db
+  // backends prefix with superline_ to sit safely beside the app's own tables.
   const backend = async (ns: string) => {
-    if ((config.storage?.type ?? 'sqlite') === 'memory') return memoryStoreServer()
-    const { sqliteStoreServer } = await import('@super-line/store-sqlite')
-    // Distinct tables per namespace — sharing one table would let a node id and
-    // a thread id collide and silently clobber each other's doc.
-    return sqliteStoreServer({ file: config.storage?.path ?? './harness.db', table: ns } as never)
+    const storage = config.storage ?? { type: 'sqlite' as const }
+    switch (storage.type) {
+      case 'memory':
+        return memoryStoreServer()
+      case 'libsql':
+        return libsqlStoreServer({ client: storage.client, table: `superline_${ns}` })
+      case 'postgres':
+        return pgStoreServer({ db: storage.db, table: `superline_${ns}` })
+      default: {
+        const { sqliteStoreServer } = await import('@super-line/store-sqlite')
+        return sqliteStoreServer({ file: storage.path ?? './harness.db', table: ns } as never)
+      }
+    }
   }
 
   const server = createSuperLineServer(contract, {
@@ -114,11 +131,25 @@ export async function serve(harness: Harness, config: ServeConfig = {}): Promise
       case 'follow_up_queued':
         room(threadId).broadcast('followUpQueued', { threadId, count: e.count })
         break
-      case 'thread_deleted':
+      case 'thread_deleted': {
         // Drop server-side caches so a reused thread id starts clean.
         projectors.delete(threadId)
         threadPrincipals.delete(threadId)
+        // Purge the durable tree docs too — otherwise they outlive the thread
+        // forever, and a reused threadId resurrects the deleted conversation
+        // via the sink's restart-merge base.
+        const threadStore = server.store('thread') as unknown as {
+          read?(id: string): Promise<{ data?: { nodes?: Record<string, unknown> } } | undefined>
+          delete(id: string): Promise<void>
+        }
+        const nodeStore = server.store('node') as unknown as { delete(id: string): Promise<void> }
+        void (async () => {
+          const doc = await threadStore.read?.(threadId).catch(() => undefined)
+          for (const nodeId of Object.keys(doc?.data?.nodes ?? {})) await nodeStore.delete(nodeId).catch(() => {})
+          await threadStore.delete(threadId).catch(() => {})
+        })()
         break
+      }
       // thread_created/thread_renamed/tree_changed have no wire form: thread
       // CRUD is request/response, and the tree itself rides the Stores.
     }

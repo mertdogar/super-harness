@@ -17,6 +17,7 @@ import { Agent } from "@mastra/core/agent"
 import { createTool } from "@mastra/core/tools"
 import { Memory } from "@mastra/memory"
 import { LibSQLStore } from "@mastra/libsql"
+import { createClient } from "@libsql/client"
 import { gateway } from "@ai-sdk/gateway"
 import { z } from "zod"
 import { webSocketServerTransport } from "@super-line/transport-websocket"
@@ -77,8 +78,21 @@ const sendReportTool = createTool({
   },
 })
 
-const storage = new LibSQLStore({ id: "web", url: "file:./dev.db" })
-const mem = () => new Memory({ storage, options: { lastMessages: 10 } })
+// ONE database: the same libsql client backs Mastra's storage (threads,
+// messages, mode metadata) AND serve()'s durable tree Stores (superline_*
+// tables). Delete dev.db to reset everything.
+const dbClient = createClient({ url: "file:./dev.db" })
+const storage = new LibSQLStore({ id: "web", client: dbClient })
+const mem = () => new Memory({
+  storage, options: {
+    lastMessages: 10, 
+    generateTitle: {
+      model: gateway("anthropic/claude-haiku-4.5"),
+      instructions:
+        "Generate a short 3-5 word title for the conversation. No quotes, no trailing punctuation.",
+    }
+  }
+})
 
 // No memory: the worker has no `recall`, so a Memory here would only write
 // scratch child-threads (id = delegate toolCallId) into the SAME storage the
@@ -138,7 +152,7 @@ const httpServer = serveHttp({ fetch: app.fetch, port: PORT }, (info) => {
 // Watch live: pnpm -F @super-harness/web-server inspect
 const INSPECTOR = process.env.SUPER_HARNESS_INSPECTOR !== "0"
 await serve(harness, {
-  storage: { type: "sqlite", path: "./harness.db" }, // durable tree → refresh/late-join rebuilds full history
+  storage: { type: "libsql", client: dbClient }, // durable tree in the SAME dev.db as Mastra's memory
   transports: [webSocketServerTransport({ server: httpServer, path: "/super-line", inspector: INSPECTOR })],
   inspector: INSPECTOR,
 })
