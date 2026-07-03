@@ -28,7 +28,7 @@ function askQuestion(request: unknown): string {
 
 export function Chat({ state }: { state: HarnessState }) {
   const harness = useHarnessClient()
-  const { tree, busy, pendingAsk, pendingApproval, queued, notice } = state
+  const { tree, busy, pendingAsk, pendingApproval, queued, notice, activeThreadDeleted } = state
 
   const onSubmit = async (message: PromptInputMessage) => {
     const text = message.text?.trim()
@@ -41,12 +41,18 @@ export function Chat({ state }: { state: HarnessState }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <Conversation className="min-h-0 flex-1">
         <ConversationContent className="mx-auto w-full max-w-3xl">
-          {tree.turns.length === 0 && (
-            <ConversationEmptyState
-              title="super-harness"
-              description="Ask about the weather (the supervisor delegates to a worker) or ask it to email you a report (approval-gated)."
-            />
-          )}
+          {tree.turns.length === 0 &&
+            (activeThreadDeleted ? (
+              <ConversationEmptyState
+                title="Thread deleted"
+                description="This conversation was deleted from another tab. Start a new thread or pick one from the sidebar."
+              />
+            ) : (
+              <ConversationEmptyState
+                title="super-harness"
+                description="Ask about the weather (the supervisor delegates to a worker) or ask it to email you a report (approval-gated)."
+              />
+            ))}
           {tree.turns.map((id) => {
             const root = tree.nodes[id]
             return (
@@ -85,25 +91,37 @@ export function Chat({ state }: { state: HarnessState }) {
         )}
         {queued > 0 && <div className="mb-2 text-muted-foreground text-xs">{queued} follow-up(s) queued</div>}
         {notice && <div className="mb-2 text-destructive text-xs">{notice}</div>}
-        <PromptInput onSubmit={onSubmit}>
-          <PromptInputTextarea
-            autoFocus
-            placeholder={pendingAsk ? "Reply to the agent…" : "Say something…"}
-          />
-          <div className="flex items-center justify-end gap-2 p-2">
-            {/* While busy the square icon is a real Stop (Enter still queues a
-                follow-up); preventDefault stops the click from submitting. */}
-            <PromptInputSubmit
-              status={busy ? "streaming" : undefined}
-              onClick={busy
-                ? (e) => {
-                    e.preventDefault()
-                    void harness.abort()
-                  }
-                : undefined}
+        {/* Active thread deleted elsewhere: the composer would post to a dead
+            thread, so gate it behind an explicit new-thread action. */}
+        {activeThreadDeleted ? (
+          <button
+            type="button"
+            className="w-full rounded-md border bg-muted/50 py-3 text-sm hover:bg-muted"
+            onClick={() => void harness.newThread()}
+          >
+            Start a new thread
+          </button>
+        ) : (
+          <PromptInput onSubmit={onSubmit}>
+            <PromptInputTextarea
+              autoFocus
+              placeholder={pendingAsk ? "Reply to the agent…" : "Say something…"}
             />
-          </div>
-        </PromptInput>
+            <div className="flex items-center justify-end gap-2 p-2">
+              {/* While busy the square icon is a real Stop (Enter still queues a
+                  follow-up); preventDefault stops the click from submitting. */}
+              <PromptInputSubmit
+                status={busy ? "streaming" : undefined}
+                onClick={busy
+                  ? (e) => {
+                      e.preventDefault()
+                      void harness.abort()
+                    }
+                  : undefined}
+              />
+            </div>
+          </PromptInput>
+        )}
       </div>
     </div>
   )

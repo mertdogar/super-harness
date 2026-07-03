@@ -1,10 +1,12 @@
 // The super-line binding: serve(harness, config) exposes an existing (transport-
 // free) Harness over super-line. The tree rides per-node/thread Stores — this
 // module subscribes to the harness bus, folds raw node events through its own
-// Projector into Store-backed sinks, and relays the ephemeral session signals
-// (suspended / approval_required / mode_changed / follow_up_queued /
-// thread_renamed) to the thread's room. Contract requests map 1:1 onto
-// Harness methods.
+// Projector into Store-backed sinks, and relays the ephemeral session signals.
+// Content signals (suspended / approval_required / mode_changed /
+// follow_up_queued) go to the per-thread room; thread-list signals
+// (threadCreated / threadRenamed / threadDeleted) go to the per-RESOURCE room
+// so every one of a resource's tabs stays in sync. Contract requests map 1:1
+// onto Harness methods.
 
 import type { ServerTransport } from '@super-line/core'
 import { createSuperLineServer } from '@super-line/server'
@@ -40,7 +42,7 @@ export interface ServeConfig {
     | { type: 'postgres'; db: PgDbLike }
     | { type: 'pglite'; pgUrl: string; electricUrl?: string }
   transports?: ServerTransport[]
-  authenticate?: (handshake: unknown) => { role: 'user'; ctx: { userId: string } }
+  authenticate?: (handshake: unknown) => { role: 'user'; ctx: { userId: string; resourceId?: string } }
   // Control Center inspector (read-only, UNAUTHENTICATED — dev/trusted only).
   // The WS transport must ALSO be created with `inspector: true` to negotiate
   // the `superline.inspector.v1` subprotocol.
@@ -86,12 +88,29 @@ export async function serve(harness: Harness, config: ServeConfig = {}): Promise
     }
   }
 
+  // Thread scoping is OPT-IN: a client that sends a `resourceId` at connect gets
+  // a scoped, server-authoritative thread list; one that doesn't (ctx.resourceId
+  // undefined) keeps the list-ALL behavior — so the tui/dev-server, which
+  // connect with only a userId, are unaffected. The resource-room key always
+  // resolves (falls back to userId) so every connection joins some room.
+  const resourceOf = (ctx: { userId: string; resourceId?: string }) => ctx.resourceId ?? ctx.userId
+
   const server = createSuperLineServer(contract, {
     transports: config.transports ?? [],
     authenticate:
       config.authenticate ??
-      ((h: unknown) => ({ role: 'user' as const, ctx: { userId: (h as any)?.query?.userId ?? 'local' } })),
+      ((h: unknown) => {
+        const q = (h as any)?.query ?? {}
+        // resourceId stays undefined when absent → list-all (backward compat);
+        // userId falls back to it, then 'local', for the store principal.
+        return { role: 'user' as const, ctx: { userId: q.userId ?? q.resourceId ?? 'local', resourceId: q.resourceId } }
+      }),
     identify: (conn: { ctx: { userId: string } }) => conn.ctx.userId,
+    // Every connection joins its resource room at connect (auto-removed on
+    // disconnect) — thread-list events broadcast here reach ALL of a resource's
+    // tabs, whatever thread each is viewing.
+    onConnection: (conn: unknown, ctx: { userId: string; resourceId?: string }) =>
+      server.room(`resource:${resourceOf(ctx)}`).add(conn as never),
     stores: { node: await backend('node'), thread: await backend('thread') },
     inspector: config.inspector ?? false,
   } as never)
@@ -115,6 +134,7 @@ export async function serve(harness: Harness, config: ServeConfig = {}): Promise
   }
 
   const room = (threadId: string) => server.room(`thread:${threadId}`)
+  const resourceRoom = (resourceId: string) => server.room(`resource:${resourceId}`)
 
   const unsubscribe = harness.subscribe((threadId, e) => {
     if (!SESSION_EVENTS.has(e.type)) {
@@ -148,10 +168,17 @@ export async function serve(harness: Harness, config: ServeConfig = {}): Promise
       case 'follow_up_queued':
         room(threadId).broadcast('followUpQueued', { threadId, count: e.count })
         break
+      // Thread-list events go to the RESOURCE room (all the resource's tabs),
+      // not the per-thread room — a tab viewing another thread must still see
+      // its sidebar change.
+      case 'thread_created':
+        resourceRoom(e.resourceId).broadcast('threadCreated', { id: threadId, resourceId: e.resourceId, title: e.title })
+        break
       case 'thread_renamed':
-        room(threadId).broadcast('threadRenamed', { threadId, title: e.title })
+        resourceRoom(e.resourceId).broadcast('threadRenamed', { threadId, title: e.title })
         break
       case 'thread_deleted': {
+        resourceRoom(e.resourceId).broadcast('threadDeleted', { threadId })
         // Drop server-side caches so a reused thread id starts clean.
         projectors.delete(threadId)
         threadPrincipals.delete(threadId)
@@ -170,8 +197,7 @@ export async function serve(harness: Harness, config: ServeConfig = {}): Promise
         })()
         break
       }
-      // thread_created/tree_changed have no wire form: thread creation is
-      // request/response, and the tree itself rides the Stores.
+      // tree_changed has no wire form: the tree itself rides the Stores.
     }
   })
 
@@ -244,11 +270,18 @@ export async function serve(harness: Harness, config: ServeConfig = {}): Promise
         modes: harness.listModes().map((m) => ({ id: m.id, name: m.name, description: m.description })),
         defaultModeId: harness.defaultModeId,
       }),
-      listThreads: async ({ resourceId }: { resourceId?: string }) => ({
-        threads: await harness.threads.list(resourceId),
+      // When the connection carries a resourceId, the list is scoped to it and
+      // creates are pinned to it (server-authoritative — the client can't list
+      // or plant threads under another resource). Without one, ctx.resourceId is
+      // undefined: list-all and the harness's own resourceId default apply.
+      listThreads: async (_input: { resourceId?: string }, ctx: { userId: string; resourceId?: string }) => ({
+        threads: await harness.threads.list(ctx.resourceId),
       }),
-      createThread: async (input: { threadId?: string; resourceId?: string; title?: string }) => ({
-        threadId: (await harness.threads.create(input)).id,
+      createThread: async (
+        input: { threadId?: string; resourceId?: string; title?: string },
+        ctx: { userId: string; resourceId?: string },
+      ) => ({
+        threadId: (await harness.threads.create({ ...input, resourceId: ctx.resourceId ?? input.resourceId })).id,
       }),
       renameThread: async ({ threadId, title }: { threadId: string; title: string }) =>
         attempt(() => harness.threads.rename(threadId, title)),

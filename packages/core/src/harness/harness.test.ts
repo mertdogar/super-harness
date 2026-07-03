@@ -593,17 +593,20 @@ describe('harness: threads facade', () => {
     const events: HarnessBusEvent[] = []
     harness.subscribe((_tid, e) => events.push(e))
 
-    const created = await harness.threads.create({ threadId: 'th-1', title: 'First' })
+    const created = await harness.threads.create({ threadId: 'th-1', resourceId: 'res-1', title: 'First' })
     expect(created).toMatchObject({ id: 'th-1', title: 'First' })
-    expect(events.find((e) => e.type === 'thread_created')).toMatchObject({ threadId: 'th-1' })
+    // Thread events carry resourceId so the server can target the resource room.
+    expect(events.find((e) => e.type === 'thread_created')).toMatchObject({ threadId: 'th-1', resourceId: 'res-1' })
 
     await harness.threads.rename('th-1', 'Renamed')
     expect((await harness.threads.get('th-1'))?.title).toBe('Renamed')
+    expect(events.find((e) => e.type === 'thread_renamed')).toMatchObject({ threadId: 'th-1', resourceId: 'res-1' })
 
     expect(await harness.threads.list()).toHaveLength(1)
     await harness.threads.delete('th-1')
     expect(await harness.threads.list()).toHaveLength(0)
-    expect(events.find((e) => e.type === 'thread_deleted')).toMatchObject({ threadId: 'th-1' })
+    // resourceId is read BEFORE deletion so the event can still target the room.
+    expect(events.find((e) => e.type === 'thread_deleted')).toMatchObject({ threadId: 'th-1', resourceId: 'res-1' })
   })
 
   it('throws a descriptive error without a store', async () => {

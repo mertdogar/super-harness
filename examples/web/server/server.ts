@@ -109,10 +109,18 @@ const supervisor = new Agent({
   memory: mem(),
 })
 
+// One demo resource: every thread (whether created explicitly or sprung into
+// existence by a first message) belongs to "web", matching the client's
+// resourceId — so the sidebar scope, the resource room, and thread ownership
+// all align. A real multi-tenant app would resolve the resource per connection
+// (out of scope here; resourceFor is sync and can't see the connection).
+const RESOURCE = "web"
+
 const harness = createHarness({
   supervisor,
   subagents: [{ agent: worker }],
   memory: mem(), // enables the thread sidebar + per-thread mode persistence
+  resourceFor: () => RESOURCE,
   modes: [
     { id: "chat", name: "Chat", instructions: "Answer conversationally.", metadata: { default: true } },
     { id: "terse", name: "Terse", instructions: "Reply in one short sentence, no pleasantries." },

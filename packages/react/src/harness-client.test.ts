@@ -280,6 +280,62 @@ describe("HarnessClient state machine", () => {
     expect(listCalls).toBe(before + 1)
   })
 
+  it("threadCreated inserts into the sidebar and dedups its own echo", async () => {
+    const { f, client } = await setup({
+      listThreads: async () => ({ threads: [{ id: "t1", resourceId: "web" }] }),
+    })
+    await client.refreshThreads()
+
+    f.emit("threadCreated", { id: "t2", resourceId: "web", title: "Trip" })
+    expect(client.getSnapshot().threads.map((t) => t.id)).toEqual(["t2", "t1"])
+
+    // Our own create echoes back — must not double-insert.
+    f.emit("threadCreated", { id: "t2", resourceId: "web", title: "Trip" })
+    expect(client.getSnapshot().threads.filter((t) => t.id === "t2")).toHaveLength(1)
+  })
+
+  it("threadDeleted removes a background thread without touching the active view", async () => {
+    const { f, client } = await setup({
+      listThreads: async () => ({ threads: [{ id: "t1", resourceId: "web" }, { id: "other", resourceId: "web" }] }),
+    })
+    await client.refreshThreads()
+    writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "hi", status: "complete" }) })
+
+    f.emit("threadDeleted", { threadId: "other" })
+
+    expect(client.getSnapshot().threads.map((t) => t.id)).toEqual(["t1"])
+    expect(client.getSnapshot().activeThreadDeleted).toBe(false)
+    expect(client.getSnapshot().tree.turns).toEqual(["r1"]) // active view untouched
+  })
+
+  it("threadDeleted of the ACTIVE thread flips activeThreadDeleted and blanks the view", async () => {
+    const { f, client } = await setup({
+      listThreads: async () => ({ threads: [{ id: "t1", resourceId: "web" }] }),
+    })
+    await client.refreshThreads()
+    writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "hi", status: "complete" }) })
+    expect(client.getSnapshot().tree.turns).toEqual(["r1"])
+
+    f.emit("threadDeleted", { threadId: "t1" }) // t1 is the active thread
+
+    const s = client.getSnapshot()
+    expect(s.activeThreadDeleted).toBe(true)
+    expect(s.threads.map((t) => t.id)).toEqual([])
+    expect(s.tree.turns).toEqual([]) // blanked
+    expect(s.busy).toBe(false)
+  })
+
+  it("switchThread clears the activeThreadDeleted limbo", async () => {
+    const { f, client } = await setup()
+    writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", status: "complete" }) })
+    f.emit("threadDeleted", { threadId: "t1" })
+    expect(client.getSnapshot().activeThreadDeleted).toBe(true)
+
+    await client.switchThread("t2")
+    expect(client.getSnapshot().activeThreadDeleted).toBe(false)
+    expect(client.getSnapshot().threadId).toBe("t2")
+  })
+
   it("StrictMode cycle: close() during an in-flight connect() abandons wire A and lives on wire B", async () => {
     // Each connect() gets its OWN wire (factory seam) — like production, where
     // every connect constructs a fresh super-line client. A's join blocks until

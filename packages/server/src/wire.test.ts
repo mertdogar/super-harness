@@ -63,7 +63,9 @@ function fakeThreadStore(): ThreadStore {
     getThreadById: async ({ threadId }) => rows.get(threadId) ?? null,
     saveThread: async ({ thread }) => rows.set(thread.id, thread),
     deleteThread: async (threadId) => void rows.delete(threadId),
-    listThreads: async () => ({ threads: [...rows.values()] }),
+    listThreads: async ({ filter } = {}) => ({
+      threads: [...rows.values()].filter((t) => !filter?.resourceId || t.resourceId === filter.resourceId),
+    }),
   }
 }
 
@@ -226,7 +228,7 @@ describe('wire (serve() over ws, via the Store)', () => {
     const client = createSuperLineClient(contract, {
       transport: webSocketClientTransport({ url: URL }),
       role: 'user',
-      params: { userId: 'local' },
+      params: { resourceId: 'res-1' },
       stores: { node: memoryStoreClient(), thread: memoryStoreClient() },
     } as never)
     cleanup = () => {
@@ -238,12 +240,61 @@ describe('wire (serve() over ws, via the Store)', () => {
     const renamed: unknown[] = []
     client.on('threadRenamed', (p: unknown) => void renamed.push(p))
 
-    await harness.threads.create({ threadId: 't3' })
+    // Thread + client share resource 'res-1' — the rename broadcasts to that
+    // resource room, which the client joined at connect.
+    await harness.threads.create({ threadId: 't3', resourceId: 'res-1' })
     await client.join({ threadId: 't3' })
     await client.sendMessage({ threadId: 't3', message: 'plan my trip' })
     for (let i = 0; i < 200 && renamed.length === 0; i++) await sleep(10)
 
     expect(renamed[0]).toMatchObject({ threadId: 't3', title: 'Title: plan my trip' })
+  })
+
+  it('broadcasts threadCreated/threadDeleted to a SECOND connection in the same resource, and scopes listThreads', async () => {
+    const harness = buildHarness(fakeThreadStore())
+    const httpServer: Server = createServer()
+    const { close } = await serve(harness, {
+      storage: { type: 'memory' },
+      transports: [webSocketServerTransport({ server: httpServer, path: '/super-line' })],
+    })
+    await new Promise<void>((resolve) => httpServer.listen(PORT, resolve))
+
+    const mk = () =>
+      createSuperLineClient(contract, {
+        transport: webSocketClientTransport({ url: URL }),
+        role: 'user',
+        params: { resourceId: 'res-1' },
+        stores: { node: memoryStoreClient(), thread: memoryStoreClient() },
+      } as never)
+    const a = mk()
+    const b = mk()
+    cleanup = () => {
+      a.close()
+      b.close()
+      close()
+      httpServer.close()
+    }
+
+    const created: any[] = []
+    const deleted: any[] = []
+    b.on('threadCreated', (p: unknown) => void created.push(p))
+    b.on('threadDeleted', (p: unknown) => void deleted.push(p))
+    // Force B's connection so it is in the resource room before A creates.
+    await b.listThreads({})
+
+    const { threadId } = await a.createThread({ title: 'Trip' })
+    for (let i = 0; i < 200 && created.length === 0; i++) await sleep(10)
+    expect(created[0]).toMatchObject({ id: threadId, resourceId: 'res-1' })
+
+    // A thread under a different resource must not leak into A's scoped list.
+    await harness.threads.create({ threadId: 'foreign', resourceId: 'res-2' })
+    const { threads } = await a.listThreads({})
+    expect(threads.map((t: { id: string }) => t.id)).toContain(threadId)
+    expect(threads.map((t: { id: string }) => t.id)).not.toContain('foreign')
+
+    await a.deleteThread({ threadId })
+    for (let i = 0; i < 200 && deleted.length === 0; i++) await sleep(10)
+    expect(deleted[0]).toMatchObject({ threadId })
   })
 
   it('deleteThread purges the durable tree docs (thread + every node)', async () => {

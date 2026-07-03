@@ -12,8 +12,11 @@ function initialThreadId(): string {
   return id
 }
 
+// resourceId groups all of this "user's" tabs: the server scopes the thread
+// list to it and joins every tab to its resource room, so create/rename/delete
+// propagate across tabs. One stable value here → all tabs share one sidebar.
 export const harnessClient = createHarnessClient({
   url: import.meta.env.VITE_SUPER_HARNESS_URL ?? "ws://localhost:4111/super-line",
-  params: { userId: "web" },
+  params: { resourceId: "web" },
   threadId: initialThreadId(),
 })

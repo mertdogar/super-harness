@@ -85,9 +85,9 @@ export type HarnessSessionEvent =
   | { type: 'approval_required'; nodeId: string; toolCallId: string; toolName: string; args?: unknown }
   | { type: 'follow_up_queued'; count: number }
   | { type: 'mode_changed'; modeId: string; previousModeId: string }
-  | { type: 'thread_created'; threadId: string; title?: string }
-  | { type: 'thread_renamed'; threadId: string; title: string }
-  | { type: 'thread_deleted'; threadId: string }
+  | { type: 'thread_created'; threadId: string; resourceId: string; title?: string }
+  | { type: 'thread_renamed'; threadId: string; resourceId: string; title: string }
+  | { type: 'thread_deleted'; threadId: string; resourceId: string }
   | { type: 'tree_changed'; tree: HarnessTree }
 
 export type HarnessBusEvent = HarnessEvent | HarnessSessionEvent
@@ -640,7 +640,7 @@ export class HarnessThreads {
       resourceId: args.resourceId ?? threadId,
       title: args.title,
     })
-    this.dispatch(t.id, { type: 'thread_created', threadId: t.id, title: t.title })
+    this.dispatch(t.id, { type: 'thread_created', threadId: t.id, resourceId: t.resourceId, title: t.title })
     return toThreadInfo(t)
   }
 
@@ -649,13 +649,16 @@ export class HarnessThreads {
     const thread = await store.getThreadById({ threadId })
     if (!thread) throw new Error(`thread not found: ${threadId}`)
     await store.saveThread({ thread: { ...thread, title } })
-    this.dispatch(threadId, { type: 'thread_renamed', threadId, title })
+    this.dispatch(threadId, { type: 'thread_renamed', threadId, resourceId: thread.resourceId, title })
   }
 
   async delete(threadId: string): Promise<void> {
+    // Read the resourceId before deleting — the resource-room broadcast needs it
+    // to reach the right tabs, and the row is gone after deleteThread.
+    const thread = await this.#require().getThreadById({ threadId })
     await this.#require().deleteThread(threadId)
     this.teardown(threadId)
-    this.dispatch(threadId, { type: 'thread_deleted', threadId })
+    this.dispatch(threadId, { type: 'thread_deleted', threadId, resourceId: thread?.resourceId ?? threadId })
   }
 }
 

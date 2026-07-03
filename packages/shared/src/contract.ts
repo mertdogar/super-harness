@@ -102,7 +102,12 @@ export const contract = defineContract({
       approvalRequired: { payload: approvalRequiredSchema },
       modeChanged: { payload: z.object({ threadId: z.string(), modeId: z.string(), previousModeId: z.string() }) },
       followUpQueued: { payload: z.object({ threadId: z.string(), count: z.number() }) },
+      // Thread-LIST signals (the sidebar), broadcast to the resource room so all
+      // of a resource's tabs stay in sync — not the per-thread room (a tab
+      // viewing thread A must still learn thread B was created/renamed/deleted).
+      threadCreated: { payload: threadInfoSchema },
       threadRenamed: { payload: z.object({ threadId: z.string(), title: z.string() }) },
+      threadDeleted: { payload: z.object({ threadId: z.string() }) },
     },
   },
   roles: {

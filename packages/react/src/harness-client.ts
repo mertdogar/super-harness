@@ -48,6 +48,9 @@ export interface HarnessState {
   threads: ThreadInfo[]
   queued: number
   notice: string | null
+  // The active thread was deleted elsewhere (another tab / resource peer). The
+  // tab is in limbo until the user picks or creates a thread.
+  activeThreadDeleted: boolean
 }
 
 export interface HarnessClientConfig {
@@ -141,6 +144,7 @@ export class HarnessClient {
       threads: [],
       queued: 0,
       notice: null,
+      activeThreadDeleted: false,
     }
   }
 
@@ -191,13 +195,35 @@ export class HarnessClient {
       if (p.threadId !== this.#state.threadId) return
       this.#set({ queued: p.count })
     })
-    // No active-thread guard: a background thread's title can change (e.g.
-    // auto-title after its first turn) while a different thread is open —
-    // the sidebar must still update.
+    // Thread-list events carry NO active-thread guard: they broadcast to the
+    // resource room, so they concern the sidebar regardless of which thread
+    // this tab is viewing.
+    client.on("threadCreated", (t) => {
+      if (this.#state.threads.some((x) => x.id === t.id)) return // our own create echoes back
+      this.#set({ threads: [t, ...this.#state.threads] })
+    })
     client.on("threadRenamed", (p) => {
       const known = this.#state.threads.some((t) => t.id === p.threadId)
       if (!known) return void this.refreshThreads()
       this.#set({ threads: this.#state.threads.map((t) => (t.id === p.threadId ? { ...t, title: p.title } : t)) })
+    })
+    client.on("threadDeleted", (p) => {
+      const threads = this.#state.threads.filter((t) => t.id !== p.threadId)
+      if (p.threadId !== this.#state.threadId) return this.#set({ threads })
+      // Our OWN active thread was deleted elsewhere — settle into the deleted
+      // state (per grill decision (c)): drop the subscription, blank the tree,
+      // let the user pick or create a thread.
+      this.#unsubTree?.()
+      this.#unsubTree = null
+      this.#set({
+        threads,
+        tree: emptyTree(),
+        busy: false,
+        pendingAsk: null,
+        pendingApproval: null,
+        queued: 0,
+        activeThreadDeleted: true,
+      })
     })
 
     try {
@@ -377,6 +403,7 @@ export class HarnessClient {
       pendingAsk: null,
       pendingApproval: null,
       queued: 0,
+      activeThreadDeleted: false, // leaving limbo for a live thread
       // The contract has no "get thread mode" read; show the default until a
       // live modeChanged corrects it.
       modeId: null,
