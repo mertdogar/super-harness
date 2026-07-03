@@ -12,6 +12,7 @@
 import { Agent } from '@mastra/core/agent'
 import { RequestContext } from '@mastra/core/request-context'
 import type { ToolsInput } from '@mastra/core/agent'
+import type { MastraModelConfig } from '@mastra/core/llm'
 import { nanoid } from 'nanoid'
 import type { HarnessEvent, HarnessTree, TokenUsage } from '@super-harness/shared'
 import type { Suspension } from './chunk-adapter'
@@ -132,6 +133,10 @@ export interface EngineConfig {
     approved: boolean
     message?: string
   }) => Promise<StreamResult | undefined>
+  // Generates a title from the first user message. Called after a root turn
+  // with real input settles on a thread that has none yet; the result is
+  // routed through HarnessThreads.rename() so it dispatches thread_renamed.
+  generateTitle?: (input: string) => Promise<string | undefined>
 }
 
 const SUPPRESS = new Set([DELEGATE_TOOL])
@@ -361,7 +366,25 @@ export class Harness {
       }
     } finally {
       st.running = false
+      if (input) void this.#maybeGenerateTitle(threadId, input)
       this.#drainQueue(threadId)
+    }
+  }
+
+  // Fire-and-forget: only the FIRST turn on a thread lacks a title, so this
+  // is a cheap no-op read on every later settle. Two turns racing on the same
+  // thread (a queued follow-up starting before this resolves) can both pass
+  // the !title check — last write wins, an extra thread_renamed event, no
+  // corruption. Accepted at this scale; not worth a lock.
+  async #maybeGenerateTitle(threadId: string, input: string): Promise<void> {
+    if (!this.cfg.generateTitle || !this.cfg.threads) return
+    try {
+      const thread = await this.cfg.threads.getThreadById({ threadId })
+      if (!thread || thread.title) return
+      const title = await this.cfg.generateTitle(input)
+      if (title) await this.threads.rename(threadId, title)
+    } catch (e) {
+      console.error('[harness] title generation failed', e)
     }
   }
 
@@ -676,6 +699,10 @@ export interface HarnessConfig {
   resourceFor?: (threadId: string) => string
   permissions?: PermissionRules
   toolCategoryResolver?: (toolName: string) => ToolCategory | null
+  // Auto-titles a thread from its first message via the supervisor's own
+  // generateTitleFromUserMessage — the harness relays the result as
+  // thread_renamed instead of the title landing silently in Mastra storage.
+  generateTitle?: boolean | { model?: MastraModelConfig; instructions?: string }
 }
 
 export function createHarness(config: HarnessConfig): Harness {
@@ -757,6 +784,12 @@ export function createHarness(config: HarnessConfig): Harness {
         : await config.supervisor.declineToolCall({ runId, toolCallId } as never)
       return out as unknown as StreamResult
     },
+    generateTitle: config.generateTitle
+      ? (input: string) => {
+          const opts = typeof config.generateTitle === 'object' ? config.generateTitle : undefined
+          return config.supervisor.generateTitleFromUserMessage({ message: input, model: opts?.model, instructions: opts?.instructions })
+        }
+      : undefined,
   })
 }
 

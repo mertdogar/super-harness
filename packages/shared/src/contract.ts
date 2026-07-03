@@ -102,6 +102,7 @@ export const contract = defineContract({
       approvalRequired: { payload: approvalRequiredSchema },
       modeChanged: { payload: z.object({ threadId: z.string(), modeId: z.string(), previousModeId: z.string() }) },
       followUpQueued: { payload: z.object({ threadId: z.string(), count: z.number() }) },
+      threadRenamed: { payload: z.object({ threadId: z.string(), title: z.string() }) },
     },
   },
   roles: {

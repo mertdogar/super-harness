@@ -191,6 +191,14 @@ export class HarnessClient {
       if (p.threadId !== this.#state.threadId) return
       this.#set({ queued: p.count })
     })
+    // No active-thread guard: a background thread's title can change (e.g.
+    // auto-title after its first turn) while a different thread is open —
+    // the sidebar must still update.
+    client.on("threadRenamed", (p) => {
+      const known = this.#state.threads.some((t) => t.id === p.threadId)
+      if (!known) return void this.refreshThreads()
+      this.#set({ threads: this.#state.threads.map((t) => (t.id === p.threadId ? { ...t, title: p.title } : t)) })
+    })
 
     try {
       await client.join({ threadId: this.#state.threadId })

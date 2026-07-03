@@ -83,16 +83,7 @@ const sendReportTool = createTool({
 // tables). Delete dev.db to reset everything.
 const dbClient = createClient({ url: "file:./dev.db" })
 const storage = new LibSQLStore({ id: "web", client: dbClient })
-const mem = () => new Memory({
-  storage, options: {
-    lastMessages: 10, 
-    generateTitle: {
-      model: gateway("anthropic/claude-haiku-4.5"),
-      instructions:
-        "Generate a short 3-5 word title for the conversation. No quotes, no trailing punctuation.",
-    }
-  }
-})
+const mem = () => new Memory({ storage, options: { lastMessages: 10 } })
 
 // No memory: the worker has no `recall`, so a Memory here would only write
 // scratch child-threads (id = delegate toolCallId) into the SAME storage the
@@ -127,6 +118,14 @@ const harness = createHarness({
     { id: "terse", name: "Terse", instructions: "Reply in one short sentence, no pleasantries." },
   ],
   permissions: { tools: { send_report: "ask" } },
+  generateTitle: {
+    model: gateway("anthropic/claude-haiku-4.5"),
+    // Mastra's own default title prompt spells out "the entire text you
+    // return will be used as the title" — without that framing haiku treats
+    // this as a style hint and answers the user's message instead of titling it.
+    instructions:
+      "Reply with ONLY a short 3-5 word title summarizing the user's message — no quotes, no trailing punctuation, no commentary. The exact text you return will be used as the title.",
+  },
 })
 
 const app = new Hono()

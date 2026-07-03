@@ -2,8 +2,9 @@
 // free) Harness over super-line. The tree rides per-node/thread Stores — this
 // module subscribes to the harness bus, folds raw node events through its own
 // Projector into Store-backed sinks, and relays the ephemeral session signals
-// (suspended / approval_required / mode_changed / follow_up_queued) to the
-// thread's room. Contract requests map 1:1 onto Harness methods.
+// (suspended / approval_required / mode_changed / follow_up_queued /
+// thread_renamed) to the thread's room. Contract requests map 1:1 onto
+// Harness methods.
 
 import type { ServerTransport } from '@super-line/core'
 import { createSuperLineServer } from '@super-line/server'
@@ -131,6 +132,9 @@ export async function serve(harness: Harness, config: ServeConfig = {}): Promise
       case 'follow_up_queued':
         room(threadId).broadcast('followUpQueued', { threadId, count: e.count })
         break
+      case 'thread_renamed':
+        room(threadId).broadcast('threadRenamed', { threadId, title: e.title })
+        break
       case 'thread_deleted': {
         // Drop server-side caches so a reused thread id starts clean.
         projectors.delete(threadId)
@@ -150,8 +154,8 @@ export async function serve(harness: Harness, config: ServeConfig = {}): Promise
         })()
         break
       }
-      // thread_created/thread_renamed/tree_changed have no wire form: thread
-      // CRUD is request/response, and the tree itself rides the Stores.
+      // thread_created/tree_changed have no wire form: thread creation is
+      // request/response, and the tree itself rides the Stores.
     }
   })
 

@@ -613,3 +613,97 @@ describe('harness: threads facade', () => {
     await expect(harness.threads.list()).rejects.toThrow('requires a memory/threads store')
   })
 })
+
+describe('harness: title generation', () => {
+  const store = (): ThreadStore => {
+    const db = new Map<string, ThreadRecord>()
+    return {
+      createThread: async (a) => {
+        const t = { id: a.threadId ?? 'gen', resourceId: a.resourceId, title: a.title }
+        db.set(t.id, t)
+        return t
+      },
+      getThreadById: async ({ threadId }) => db.get(threadId) ?? null,
+      saveThread: async ({ thread }) => void db.set(thread.id, thread),
+      deleteThread: async (threadId) => void db.delete(threadId),
+      listThreads: async ({ filter }) => ({
+        threads: [...db.values()].filter((t) => !filter?.resourceId || t.resourceId === filter.resourceId),
+      }),
+    }
+  }
+  const registry = (): Map<string, SubagentEntry> => {
+    const r = new Map<string, SubagentEntry>()
+    r.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
+    return r
+  }
+
+  it('generates a title from the first user message and dispatches thread_renamed', async () => {
+    const threads = store()
+    await threads.createThread({ threadId: 't1', resourceId: 't1' })
+    let calls = 0
+    const harness = engine(registry(), {
+      threads,
+      generateTitle: async (input) => {
+        calls++
+        return `Title for: ${input}`
+      },
+    })
+    const events: HarnessBusEvent[] = []
+    harness.subscribe((_tid, e) => events.push(e))
+
+    await harness.sendMessage({ threadId: 't1', content: 'hello there' })
+    await new Promise((r) => setTimeout(r, 20)) // title gen is fire-and-forget
+
+    expect(calls).toBe(1)
+    expect((await threads.getThreadById({ threadId: 't1' }))?.title).toBe('Title for: hello there')
+    expect(events.find((e) => e.type === 'thread_renamed')).toMatchObject({ threadId: 't1', title: 'Title for: hello there' })
+  })
+
+  it('does not regenerate a title once the thread already has one', async () => {
+    const threads = store()
+    await threads.createThread({ threadId: 't1', resourceId: 't1', title: 'Existing' })
+    let calls = 0
+    const harness = engine(registry(), {
+      threads,
+      generateTitle: async () => {
+        calls++
+        return 'New title'
+      },
+    })
+
+    await harness.sendMessage({ threadId: 't1', content: 'hello again' })
+    await new Promise((r) => setTimeout(r, 20))
+
+    expect(calls).toBe(0)
+    expect((await threads.getThreadById({ threadId: 't1' }))?.title).toBe('Existing')
+  })
+
+  it('does not generate a title for an empty-input turn (e.g. a resume continuation)', async () => {
+    const threads = store()
+    await threads.createThread({ threadId: 't1', resourceId: 't1' })
+    let calls = 0
+    const harness = engine(registry(), { threads, generateTitle: async () => (calls++, 'Title') })
+
+    await harness.sendMessage({ threadId: 't1', content: '' })
+    await new Promise((r) => setTimeout(r, 20))
+
+    expect(calls).toBe(0)
+  })
+
+  it('swallows a title-generation failure without crashing the turn', async () => {
+    const threads = store()
+    await threads.createThread({ threadId: 't1', resourceId: 't1' })
+    const harness = engine(registry(), {
+      threads,
+      generateTitle: async () => {
+        throw new Error('model unavailable')
+      },
+    })
+
+    const result = await harness.sendMessage({ threadId: 't1', content: 'hello' })
+    await new Promise((r) => setTimeout(r, 20))
+
+    expect(result.status).toBe('done')
+    expect((await threads.getThreadById({ threadId: 't1' }))?.title).toBeUndefined()
+  })
+})

@@ -248,6 +248,38 @@ describe("HarnessClient state machine", () => {
     expect(client.getSnapshot().modeId).toBeNull()
   })
 
+  it("threadRenamed patches the matching sidebar entry in place, even for a background thread", async () => {
+    // Unlike suspended/modeChanged above, threadRenamed has NO active-thread
+    // filter — a title can change on a thread the user isn't currently viewing.
+    const { f, client } = await setup({
+      listThreads: async () => ({ threads: [{ id: "t1", resourceId: "t1" }, { id: "other", resourceId: "other" }] }),
+    })
+    await client.refreshThreads()
+
+    f.emit("threadRenamed", { threadId: "other", title: "New Title" })
+
+    expect(client.getSnapshot().threads).toEqual([
+      { id: "t1", resourceId: "t1" },
+      { id: "other", resourceId: "other", title: "New Title" },
+    ])
+  })
+
+  it("threadRenamed for a thread not yet in the sidebar falls back to a full refresh", async () => {
+    // Override, so track calls locally — an overridden listThreads bypasses
+    // fakeWire's own f.calls counter.
+    let listCalls = 0
+    const { f, client } = await setup({
+      listThreads: async () => (listCalls++, { threads: [{ id: "t1", resourceId: "t1" }] }),
+    })
+    await client.refreshThreads()
+    const before = listCalls
+
+    f.emit("threadRenamed", { threadId: "unseen", title: "New" })
+    await new Promise((r) => setTimeout(r, 0))
+
+    expect(listCalls).toBe(before + 1)
+  })
+
   it("StrictMode cycle: close() during an in-flight connect() abandons wire A and lives on wire B", async () => {
     // Each connect() gets its OWN wire (factory seam) — like production, where
     // every connect constructs a fresh super-line client. A's join blocks until

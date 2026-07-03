@@ -205,6 +205,47 @@ describe('wire (serve() over ws, via the Store)', () => {
     expect(text).toBe('resumed:yes')
   })
 
+  it('broadcasts threadRenamed over the wire once the harness generates a title', async () => {
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
+    const harness = new Harness({
+      supervisorType: 'supervisor',
+      registry,
+      maxDepth: 1,
+      threads: fakeThreadStore(),
+      generateTitle: async (input) => `Title: ${input}`,
+    })
+
+    const httpServer: Server = createServer()
+    const { close } = await serve(harness, {
+      storage: { type: 'memory' },
+      transports: [webSocketServerTransport({ server: httpServer, path: '/super-line' })],
+    })
+    await new Promise<void>((resolve) => httpServer.listen(PORT, resolve))
+
+    const client = createSuperLineClient(contract, {
+      transport: webSocketClientTransport({ url: URL }),
+      role: 'user',
+      params: { userId: 'local' },
+      stores: { node: memoryStoreClient(), thread: memoryStoreClient() },
+    } as never)
+    cleanup = () => {
+      client.close()
+      close()
+      httpServer.close()
+    }
+
+    const renamed: unknown[] = []
+    client.on('threadRenamed', (p: unknown) => void renamed.push(p))
+
+    await harness.threads.create({ threadId: 't3' })
+    await client.join({ threadId: 't3' })
+    await client.sendMessage({ threadId: 't3', message: 'plan my trip' })
+    for (let i = 0; i < 200 && renamed.length === 0; i++) await sleep(10)
+
+    expect(renamed[0]).toMatchObject({ threadId: 't3', title: 'Title: plan my trip' })
+  })
+
   it('deleteThread purges the durable tree docs (thread + every node)', async () => {
     const harness = buildHarness(fakeThreadStore())
     const { server, close } = await serve(harness, { storage: { type: 'memory' } })
