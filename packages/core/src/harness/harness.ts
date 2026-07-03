@@ -656,7 +656,18 @@ export class HarnessThreads {
     // Read the resourceId before deleting — the resource-room broadcast needs it
     // to reach the right tabs, and the row is gone after deleteThread.
     const thread = await this.#require().getThreadById({ threadId })
-    await this.#require().deleteThread(threadId)
+    try {
+      await this.#require().deleteThread(threadId)
+    } catch (e) {
+      // Some stores delete the row then throw on a secondary cleanup: Mastra's
+      // PostgresStore clears observational memory on every deleteThread, but that
+      // table is created lazily on first write — so deleting a thread that never
+      // wrote one throws AFTER the row is already gone. If the thread is verifiably
+      // gone the delete succeeded for our purposes; only re-throw a genuine failure
+      // that left it in place (otherwise thread_deleted never fires and every
+      // client's sidebar silently keeps the dead thread).
+      if (await this.#require().getThreadById({ threadId })) throw e
+    }
     this.teardown(threadId)
     this.dispatch(threadId, { type: 'thread_deleted', threadId, resourceId: thread?.resourceId ?? threadId })
   }

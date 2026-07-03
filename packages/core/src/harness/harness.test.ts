@@ -615,6 +615,69 @@ describe('harness: threads facade', () => {
     const harness = engine(registry)
     await expect(harness.threads.list()).rejects.toThrow('requires a memory/threads store')
   })
+
+  // Mastra's PostgresStore deletes the thread row, THEN throws clearing an
+  // observational-memory table that was never created — so the row is gone but
+  // deleteThread rejected. thread_deleted must still fire or every client keeps
+  // the dead thread in its sidebar (this is the "delete doesn't propagate" bug).
+  it('still emits thread_deleted when the store deletes the row then throws on cleanup', async () => {
+    const db = new Map<string, ThreadRecord>()
+    const store: ThreadStore = {
+      createThread: async (a) => {
+        const t = { id: a.threadId ?? 'gen', resourceId: a.resourceId, title: a.title }
+        db.set(t.id, t)
+        return t
+      },
+      getThreadById: async ({ threadId }) => db.get(threadId) ?? null,
+      saveThread: async ({ thread }) => void db.set(thread.id, thread),
+      deleteThread: async (threadId) => {
+        db.delete(threadId) // row gone...
+        throw new Error('CLEAR_OBSERVATIONAL_MEMORY_FAILED') // ...then cleanup throws
+      },
+      listThreads: async ({ filter }) => ({
+        threads: [...db.values()].filter((t) => !filter?.resourceId || t.resourceId === filter.resourceId),
+      }),
+    }
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
+    const harness = engine(registry, { threads: store })
+    const events: HarnessBusEvent[] = []
+    harness.subscribe((_tid, e) => events.push(e))
+
+    await harness.threads.create({ threadId: 'th-1', resourceId: 'res-1' })
+    await expect(harness.threads.delete('th-1')).resolves.toBeUndefined()
+    expect(events.find((e) => e.type === 'thread_deleted')).toMatchObject({ threadId: 'th-1', resourceId: 'res-1' })
+  })
+
+  // But a genuine failure that leaves the row in place must still throw and NOT
+  // tell clients the thread is gone.
+  it('re-throws and does not emit thread_deleted when the row survives the failure', async () => {
+    const db = new Map<string, ThreadRecord>()
+    const store: ThreadStore = {
+      createThread: async (a) => {
+        const t = { id: a.threadId ?? 'gen', resourceId: a.resourceId, title: a.title }
+        db.set(t.id, t)
+        return t
+      },
+      getThreadById: async ({ threadId }) => db.get(threadId) ?? null,
+      saveThread: async ({ thread }) => void db.set(thread.id, thread),
+      deleteThread: async () => {
+        throw new Error('DELETE_THREAD_FAILED') // nothing deleted
+      },
+      listThreads: async ({ filter }) => ({
+        threads: [...db.values()].filter((t) => !filter?.resourceId || t.resourceId === filter.resourceId),
+      }),
+    }
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
+    const harness = engine(registry, { threads: store })
+    const events: HarnessBusEvent[] = []
+    harness.subscribe((_tid, e) => events.push(e))
+
+    await harness.threads.create({ threadId: 'th-1', resourceId: 'res-1' })
+    await expect(harness.threads.delete('th-1')).rejects.toThrow('DELETE_THREAD_FAILED')
+    expect(events.find((e) => e.type === 'thread_deleted')).toBeUndefined()
+  })
 })
 
 describe('harness: title generation', () => {
