@@ -19,7 +19,7 @@ import { createHarnessClient, HarnessProvider, useHarness, useHarnessClient } fr
 
 const client = createHarnessClient({
   url: "ws://localhost:4111/super-line",
-  params: { userId: "me" },        // read by the server's authenticate
+  params: { userId: "me", resourceId: "me" },  // resourceId scopes the thread list + cross-tab sync
   threadId,                        // full 21-char nanoid — never truncate
 })
 
@@ -49,4 +49,8 @@ Actions: `send`, `reply`, `respond(decision)`, `dismissAsk`, `abort`,
   server just did.
 - Render the tree from `state.tree` (`ClientTree` from `@super-harness/shared`);
   a delegation is a CHILD NODE (`childOrder` + `textOffset`), not a tool entry.
+- The thread list is live: `threadCreated`/`threadRenamed`/`threadDeleted` from
+  the resource room update `state.threads` across tabs (an auto-title arrives as
+  a `threadRenamed`); a remotely-deleted active thread drops to an empty state
+  (`state.activeThreadDeleted`), so render a "start a new thread" affordance.
 - Reconnects re-join and re-subscribe automatically (1s connectivity poll).

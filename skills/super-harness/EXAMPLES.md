@@ -116,6 +116,7 @@ await client.sendMessage({ threadId, message: 'hello' })
 const harness = createHarness({
   supervisor, subagents,
   memory: new Memory({ storage }),             // required for persistence + listing
+  generateTitle: true,                         // auto-title from the first message → thread_renamed
   modes: [
     { id: 'chat',  name: 'Chat',  instructions: 'Conversational.', metadata: { default: true } },
     { id: 'audit', name: 'Audit', instructions: 'Cite evidence for every claim.',
@@ -128,3 +129,21 @@ await harness.switchMode(t.id, 'audit')        // persists as harnessModeId in t
 await harness.sendMessage({ threadId: t.id, content: 'audit the numbers' })
 console.log(await harness.threads.list())      // survives restart via Memory storage
 ```
+
+## 7. Cross-tab thread list (resource scoping)
+
+A resource's tabs stay in sync through the resource room — no polling. Connect
+each tab with a shared `resourceId` (via the server's `authenticate`), then:
+
+```ts
+const client = createHarnessClient({ url, params: { userId: 'me', resourceId: 'me' } })
+
+client.on('threadCreated', (t) => addToSidebar(t))        // a sibling tab (or createThread)
+client.on('threadRenamed', ({ threadId, title }) => renameInSidebar(threadId, title)) // incl. auto-titles
+client.on('threadDeleted', ({ threadId }) => removeFromSidebar(threadId))
+
+const { threads } = await client.listThreads({})          // scoped to this resource, server-side
+```
+
+`@super-harness/react` wires all three into `state.threads` for you (and flags a
+remotely-deleted active thread as `state.activeThreadDeleted`).

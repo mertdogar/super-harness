@@ -43,6 +43,7 @@ const harness = createHarness({
   supervisor,                                   // Agent — delegatesTo defaults to ALL subagents
   subagents: [{ agent: worker }],               // Agents — delegatesTo defaults to none (leaf)
   memory,                                       // optional ThreadStore (a MastraMemory fits) → threads + mode persistence
+  generateTitle: true,                          // optional — auto-title from the first message (needs memory)
   modes: [{ id: 'chat', instructions: '…', metadata: { default: true } }],
   permissions: { tools: { deploy: 'ask' } },    // gate supervisor tool calls
 })
@@ -97,3 +98,12 @@ Full worked examples (server, web client, HITL round-trips): see [EXAMPLES.md](E
   structured instruction shapes are dropped and the mode text runs alone.
 - Thread ids: full 21-char nanoids. Never truncate them in UIs — a prefix
   silently creates a fresh thread on resume.
+- Thread-list events are per-**resource**, not per-thread: `thread_created`/
+  `thread_renamed`/`thread_deleted` broadcast to `resource:{id}` (from the
+  connection's `resourceId`, falling back to `resourceFor`/the threadId), so a
+  tab viewing thread A still sees thread B appear. A connection with no
+  `resourceId` lists ALL threads and shares the userId-keyed room — fine for a
+  single-tenant tui, wrong for multi-user. Scoping is opt-in for backward compat.
+- `generateTitle` surfaces as a `thread_renamed` after the first turn settles —
+  not a separate title event. Custom `instructions` must state the reply IS the
+  title, or a chat model answers the message instead of naming it.

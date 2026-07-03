@@ -34,13 +34,17 @@ const httpServer = createServer()
 const { server, close } = await serve(harness, {
   storage: { type: 'sqlite', path: './harness.db' },   // default; 'memory' = non-durable (tests/dev)
   transports: [webSocketServerTransport({ server: httpServer, path: '/super-line' })],
-  authenticate: (h) => ({ role: 'user', ctx: { userId: verify(h) } }),
+  authenticate: (h) => ({ role: 'user', ctx: { userId: verify(h), resourceId } }),
 })
 httpServer.listen(4111)
 ```
 
-- The default `authenticate` trusts a `userId` query param — replace it for
-  anything beyond localhost.
+- The default `authenticate` trusts `userId` (and optional `resourceId`) query
+  params — replace it for anything beyond localhost. `resourceId` is the
+  thread-list scope: connections that share one get a scoped `listThreads` +
+  server-pinned `createThread`, and join the same resource room so
+  `threadCreated`/`threadRenamed`/`threadDeleted` reach all their tabs. Omit it
+  (as the tui/dev-server do) for the unscoped, list-all default.
 - sqlite storage owns its own file and needs `better-sqlite3`'s native build —
   allowlist it for your package manager (pnpm: `allowBuilds` in
   `pnpm-workspace.yaml`, or `pnpm approve-builds`).
@@ -48,11 +52,15 @@ httpServer.listen(4111)
   pass the live connection: `storage: { type: 'libsql', client }` (the same
   `@libsql/client` you give `LibSQLStore`) or `storage: { type: 'postgres', db }`
   (`PostgresStore`'s public `storage.db`). The tree lands in `superline_node` /
-  `superline_thread` tables beside the app's own.
-- What goes where: tree state → per-node/per-thread **Stores**; ephemeral
-  signals (`suspended`, `approvalRequired`, `modeChanged`, `followUpQueued`) →
-  room events on `thread:{id}`; actions → contract requests. `close()` only
-  detaches the bus subscription; close the http server to tear down.
+  `superline_thread` tables beside the app's own. For multi-node, `storage:
+  { type: 'pglite', pgUrl, electricUrl }` keeps each node's replica in sync via
+  central Postgres + Electric (the optional `@super-line/store-pglite` peer).
+- What goes where: tree state → per-node/per-thread **Stores**; content signals
+  (`suspended`, `approvalRequired`, `modeChanged`, `followUpQueued`) → room
+  events on `thread:{id}`; thread-list signals (`threadCreated`, `threadRenamed`,
+  `threadDeleted`) → room events on `resource:{id}`; actions → contract requests.
+  `close()` only detaches the bus subscription; close the http server to tear
+  down.
 
 ## C. Custom client
 
@@ -91,6 +99,11 @@ await client.sendMessage({ threadId, message: 'hi' })
   `{ threadId }`.
 - For token-level rendering, diff snapshots with `diffTree(prev, next)` instead
   of re-rendering whole trees.
+- Server→client events via `client.on(...)`: `suspended`, `approvalRequired`,
+  `modeChanged`, `followUpQueued` (thread-scoped — need a `join`), plus
+  `threadCreated`/`threadRenamed`/`threadDeleted` (resource-scoped — they arrive
+  without a join, so a sidebar reacts to sibling tabs). `renameThread` and
+  auto-titling both surface as `threadRenamed`.
 
 ## Topology design
 
@@ -123,4 +136,15 @@ await client.sendMessage({ threadId, message: 'hi' })
 - `memory` is any structural `ThreadStore` — a `new Memory(...)` from
   `@mastra/memory` fits directly. `resourceFor(threadId)` maps threads to your
   own user/tenant key (default: each thread is its own resource — the
-  resourceId falls back to the threadId).
+  resourceId falls back to the threadId). That resourceId is the thread-list
+  scope end to end: it filters `listThreads`, pins `createThread`, and keys the
+  resource room the thread-list events broadcast to. An **implicit** first-
+  message thread (created mid-turn by Mastra, not via `createThread`) inherits
+  its resourceId from `resourceFor` — leave that at the default and its
+  create/delete broadcasts land in a per-thread room no other tab is in, so set
+  `resourceFor` to your real tenant key for cross-tab sync to work.
+- `generateTitle: true` (or `{ model?, instructions? }`) auto-titles a thread
+  from its first message once the turn settles — it relays as a `threadRenamed`,
+  so no extra client wiring. Custom `instructions` MUST tell the model the reply
+  IS the title verbatim, or a chat model answers the message instead of naming
+  it.

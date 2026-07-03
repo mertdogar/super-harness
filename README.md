@@ -24,7 +24,7 @@ Super Harness makes three guarantees the design is built around:
 - **Store-as-transport.** Each node's progress lives in a super-line Store Resource. That single document is the persistence *and* the live stream *and* the reconnect/late-join snapshot. No separate event log to reconcile with state.
 - **Read a session from anywhere.** An isomorphic client view (`subscribeTree` + `diffTree`) reassembles the reactive tree from Store Resources and turns any two snapshots into an incremental `HarnessEvent` stream. The TUI, a browser chat, and an eval all read the same way.
 - **Batteries-included built-ins.** `delegate` (spawn a subagent), `ask_user` (root-only human-in-the-loop via tool suspend/resume), and `todo` (a plan surface) come wired.
-- **A session runtime, not just a run loop.** Typed event bus (`subscribe`), follow-up queue + `steer`, a suspension registry (parallel `ask_user`s by `toolCallId`), tool approvals with permission rules and session grants, per-thread modes (instruction overlays + tool allowlists), and thread management over Mastra Memory.
+- **A session runtime, not just a run loop.** Typed event bus (`subscribe`), follow-up queue + `steer`, a suspension registry (parallel `ask_user`s by `toolCallId`), tool approvals with permission rules and session grants, per-thread modes (instruction overlays + tool allowlists), and thread management over Mastra Memory (with optional auto-titling from the first message, broadcast live to every tab).
 - **Durable by default.** SQLite-backed Stores out of the box; in-memory for tests.
 - **Terminal client included.** An OpenTUI cockpit for developers and a `--headless` stdin/stdout shell for agents — both drive any harness server over super-line.
 
@@ -35,8 +35,10 @@ Super Harness makes three guarantees the design is built around:
 | [`@super-harness/core`](packages/core) | The harness: `createHarness` returns a transport-free, AgentController-style host — delegation graph (`delegatesTo` edges, depth-gated), event bus, follow-up queue + steer, suspensions, approvals + permissions, modes, threads, and the fold to one live tree per thread. Depends only on `shared` plus `nanoid`/`zod`, with Mastra as a peer — no super-line, no transport. |
 | [`@super-harness/server`](packages/server) | The super-line binding: `serve(harness, config)` — durable per-node/thread Stores, the wire contract (turns, approvals, modes, threads), and room broadcast of the ephemeral signals. |
 | [`@super-harness/shared`](packages/shared) | The isomorphic wire layer: the super-line contract, the `HarnessEvent` union, the tree types + fold (`apply`), and the client-side Store view (`subscribeTree` + `diffTree`). No Mastra, no server deps — safe in the browser, Bun, and Node. |
+| [`@super-harness/react`](packages/react) | The headless React client: a framework-free `HarnessClient` (wire state machine — join, `subscribeTree`, ask/approval lifecycle, modes, live thread list, reconnect) plus `HarnessProvider`/`useHarness` hooks. No components — bring your own. |
 | [`@super-harness/tui`](packages/tui) | The terminal client — OpenTUI cockpit + headless shell. Runs on Bun. |
 | [`examples/dev-server`](examples/dev-server) | A runnable server: a supervisor delegating to a `worker` subagent with a live weather tool. What the quickstart below runs. |
+| [`examples/web`](examples/web) | Fullstack showcase — a Hono harness backend and a Vite/React/shadcn/ai-elements client (live tree, approvals, modes, cross-tab thread list). |
 
 ## Quickstart
 
@@ -132,6 +134,7 @@ httpServer.listen(4111)
 | `defaultModeId` | `string` | Explicit default mode; beats `metadata.default`, else the first mode is the default. |
 | `resourceFor` | `(threadId) => string` | Maps a thread to its Mastra memory `resourceId`. Default: the threadId itself. |
 | `memory` | `MastraMemory` | Enables `harness.threads.*` (list/create/rename/delete) and per-thread mode persistence. |
+| `generateTitle` | `boolean \| { model?, instructions? }` | Auto-title a thread from its first user message once the turn settles (needs `memory`). Runs the supervisor's `generateTitleFromUserMessage`; the result relays as a `thread_renamed` event so live clients update without a reload. |
 | `permissions` | `PermissionRules` | `allow \| ask \| deny` per tool and per category. Per-tool `deny` beats everything (even yolo); unresolved gated tools default to `ask`. Built-ins never gate. |
 | `toolCategoryResolver` | `(toolName) => ToolCategory \| null` | Maps tools to `read/edit/execute/mcp/other` for category policies and grants. |
 
@@ -267,7 +270,7 @@ Every progress signal is a `HarnessEvent` — a zod discriminated union with a c
 - **chunk-adapter** maps each Mastra `fullStream` chunk to `HarnessEvent` bodies — and suppresses the parent-level tool chunks for a `delegate` call (the child node represents it).
 - **Projector** folds those events into one live tree per thread via `apply` — the harness's own copy backs `getTree`/`tree_changed`; `serve` runs a second fold into the Store-backed sink.
 - **sink** (`superlineTreeSink`, in `@super-harness/server`) is the durable write path: it `create`s each Resource (granted to the thread's principals) before `open`ing it, so a client that opens the Resource always finds a live, readable handle. The port it implements (`TreeSink`) is two methods — that's the whole seam a custom persistence layer fills.
-- **Ephemeral signals** (`suspended`, `approvalRequired`, `modeChanged`, `followUpQueued`) broadcast to the thread's room; requests (`respondToApproval`, `switchMode`, `listThreads`, …) map 1:1 onto Harness methods.
+- **Ephemeral signals** split by axis. Content signals (`suspended`, `approvalRequired`, `modeChanged`, `followUpQueued`) broadcast to the per-**thread** room; thread-list signals (`threadCreated`, `threadRenamed`, `threadDeleted`) broadcast to the per-**resource** room, so every one of a resource's tabs keeps its sidebar in sync whatever thread each is viewing. Requests (`respondToApproval`, `switchMode`, `listThreads`, …) map 1:1 onto Harness methods.
 
 ### The contract
 
@@ -278,9 +281,9 @@ The tree itself does **not** ride the super-line contract — it rides the Store
 - `resumeMessage(threadId, toolCallId?, resumeData)` — answer a pending `ask_user`.
 - `respondToApproval(threadId, toolCallId?, decision, message?)` — resolve a gated tool call (`approve/decline/always_allow/always_allow_category`).
 - `switchMode` / `listModes` — per-thread mode control.
-- `listThreads` / `createThread` / `renameThread` / `deleteThread` — thread management (needs `memory` on the harness).
+- `listThreads` / `createThread` / `renameThread` / `deleteThread` — thread management (needs `memory` on the harness). Scoping is opt-in: a connection that carries a `resourceId` gets a list scoped to it and creates pinned to it (server-authoritative); without one, the list is unscoped — backward-compatible with the tui/dev-server.
 - `abort(threadId)` — abort the running turn.
-- Events (server→client): `suspended` (an `ask_user` prompt is waiting), `approvalRequired` (a gated tool wants a decision), `modeChanged`, `followUpQueued`. Ephemeral signals — requests for input or transient status, not durable state — so they're events rather than Store writes.
+- Events (server→client): content signals on the thread room — `suspended` (an `ask_user` prompt is waiting), `approvalRequired` (a gated tool wants a decision), `modeChanged`, `followUpQueued` — and thread-list signals on the resource room — `threadCreated`, `threadRenamed` (also carries auto-generated titles), `threadDeleted`. All ephemeral — requests for input or sidebar deltas, not durable state — so they're events rather than Store writes.
 
 ### Built-in tools
 
@@ -292,7 +295,7 @@ The tree itself does **not** ride the super-line contract — it rides the Store
 
 ### Persistence & storage
 
-Stores are durable through their backend. `storage: { type: 'sqlite', path }` (the default) persists every node and thread to SQLite — fetch or replay any run, at any depth, at any time. `storage: { type: 'memory' }` keeps it all in memory for tests and quick dev loops. Because the server is the sole writer, no CRDT is involved; the Store uses last-write-wins semantics, which is all a single writer needs.
+Stores are durable through their backend. `storage: { type: 'sqlite', path }` (the default) persists every node and thread to SQLite — fetch or replay any run, at any depth, at any time. `storage: { type: 'memory' }` keeps it all in memory for tests and quick dev loops. To reuse a database the app already owns, `{ type: 'libsql', client }` or `{ type: 'postgres', db }` write `superline_*` tables beside your own (no second file, no native build); `{ type: 'pglite', pgUrl, electricUrl }` is the multi-node option — central Postgres with per-node Electric-synced replicas. Because the server is the sole writer, no CRDT is involved; the Store uses last-write-wins semantics, which is all a single writer needs.
 
 ### A note on version skew
 
@@ -368,9 +371,11 @@ packages/
   shared/     isomorphic wire layer (contract, events, tree, client-view)
   core/       the harness (createHarness: bus, queue, approvals, modes, threads)
   server/     super-line binding (serve, contract impl, Store sink)
+  react/      headless React client (HarnessClient + provider/hooks, no UI)
   tui/        terminal client (OpenTUI cockpit + headless shell) — Bun
 examples/
   dev-server/        runnable supervisor + worker demo
+  web/               fullstack Hono backend + Vite/React/shadcn client
   mastra-playground/ standalone Mastra scratchpad (not wired to the harness)
 ```
 

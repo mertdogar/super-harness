@@ -6,8 +6,9 @@ every client import this package, making it the single source of truth for:
 
 - **`contract`** — the super-line contract: requests (`join`, `sendMessage`,
   `resumeMessage`, `abort`, `respondToApproval`, `switchMode`, `listModes`,
-  thread CRUD) and ephemeral events (`suspended`, `approvalRequired`,
-  `modeChanged`, `followUpQueued`), with their zod schemas.
+  thread CRUD) and ephemeral events — content signals (`suspended`,
+  `approvalRequired`, `modeChanged`, `followUpQueued`) plus thread-list signals
+  (`threadCreated`, `threadRenamed`, `threadDeleted`) — with their zod schemas.
 - **`harnessEventSchema` / `HarnessEvent`** — the enveloped node-event
   vocabulary the harness emits (message/reasoning/tool deltas, node lifecycle,
   todos, usage).
