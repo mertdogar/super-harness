@@ -27,9 +27,13 @@ Run the demo: `pnpm -F @super-harness/dev-server start` (needs
   approvals, suspensions, modes, threads). Mastra is a **peer** dep.
 - `packages/server` — super-line binding: `serve(harness, config)`, durable
   Store sink, contract implementation.
+- `packages/react` — headless React client: framework-free `HarnessClient`
+  (wire state machine) + `HarnessProvider`/`useHarness` hooks. No components.
 - `packages/tui` — terminal client (OpenTUI cockpit + headless shell). **Bun
   only** (`bun:ffi`).
 - `examples/dev-server` — runnable supervisor + worker demo.
+- `examples/web` — fullstack showcase: Hono backend (`web/server`) + Vite/React/
+  shadcn/ai-elements client (`web/client`). See its CLAUDE.md.
 - `examples/mastra-playground` — standalone Mastra scratchpad, NOT wired to
   the harness.
 

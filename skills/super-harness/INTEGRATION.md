@@ -51,6 +51,11 @@ httpServer.listen(4111)
 
 ## C. Custom client
 
+**React apps: use `@super-harness/react` instead of hand-rolling this** —
+`createHarnessClient({ url, params, threadId })` + `<HarnessProvider client>` +
+`useHarness()`/`useHarnessClient()` wrap the pattern below (join, subscribeTree,
+ask/approval lifecycle, reconnect). The raw wiring:
+
 The contract lives in `@super-harness/shared` — import it, never redeclare.
 
 ```ts
