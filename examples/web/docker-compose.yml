@@ -67,6 +67,11 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
+  # node-1 is the schema leader: it creates the shared superline_* tables during
+  # boot. node-2/3 wait for it to be healthy before starting, so the three never
+  # run CREATE TABLE IF NOT EXISTS concurrently on a cold DB — that race collides
+  # on the table's implicit row-type and throws 42710 (store-pglite 0.1.0 swallows
+  # 42P07/23505 but not 42710). Once the tables exist, followers' DDL just no-ops.
   node-1:
     <<: *node
     environment:
@@ -75,12 +80,20 @@ services:
     ports: ['8801:8801'] # → node-1 in the selectbox
   node-2:
     <<: *node
+    depends_on:
+      postgres: { condition: service_healthy }
+      electric: { condition: service_started }
+      node-1: { condition: service_healthy } # schema created before we boot
     environment:
       <<: *node-env
       NODE_NAME: node-2
     ports: ['8802:8801'] # → node-2 in the selectbox
   node-3:
     <<: *node
+    depends_on:
+      postgres: { condition: service_healthy }
+      electric: { condition: service_started }
+      node-1: { condition: service_healthy } # schema created before we boot
     environment:
       <<: *node-env
       NODE_NAME: node-3
