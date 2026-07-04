@@ -304,6 +304,7 @@ export class Harness {
         input,
         threadId,
         resource: this.#resource(threadId),
+        maxSteps: entry.maxSteps,
         abortSignal: st.abort.signal,
         resumeData,
         modeInstructions: mode?.instructions,
@@ -704,6 +705,10 @@ export interface HarnessConfig {
   // Supervisor delegatesTo defaults to ALL subagents; override to restrict.
   delegatesTo?: string[] | true
   subagents?: SubagentConfig[]
+  // Root-turn step budget for the supervisor (Mastra's `maxSteps`). Unset =
+  // Mastra's default (~5), which caps a multi-step plan-and-execute turn.
+  // Subagents set theirs via SubagentConfig.maxSteps.
+  maxSteps?: number
   maxDepth?: number
   modes?: HarnessMode[]
   defaultModeId?: string
@@ -769,6 +774,7 @@ export function createHarness(config: HarnessConfig): Harness {
   registry.set(config.supervisor.id, {
     agentType: config.supervisor.id,
     delegatesTo: supervisorEdges,
+    maxSteps: config.maxSteps,
     makeRunner: runnerFactory(config.supervisor, supervisorEdges),
   })
   for (const s of subs) {
