@@ -53,6 +53,11 @@ Two workspace packages (glob `examples/web/*`): `server/` (Hono +
   disables) — read-only but UNAUTHENTICATED, fine only because this is a
   localhost demo. `pnpm -F @super-harness/web-server inspect` opens the
   Control Center. The flag lives on BOTH the transport and `serve()`.
+- **Two separate cross-node planes.** The tree/Store data bus is Electric
+  (`pglite` mode only). Presence + inspector fan-out is a SEPARATE broker-less
+  libp2p mesh (mDNS discovery, gossipsub, `createLibp2pAdapter`) that every
+  node joins regardless of storage backend — that's why connecting the Control
+  Center to any one node surfaces the whole cluster, not just that node.
 - The client vendors ai-elements + shadcn components under
   `src/components/{ai-elements,ui}/` — registry-generated code, don't hand-tune
   style there. The `ai` npm package is a type-only dep of those components; the

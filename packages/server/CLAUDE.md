@@ -52,9 +52,9 @@ returns `ctx.userId` — see the gotchas below and `examples/composed-host`.
   events flush the latest doc at most once per interval, and the final doc always
   lands. Clients render from the store snapshot + `onChange`; a reload reads the
   store. Cadence is app policy (see the store-pglite handoff §1 in super-line).
-  `write()` currently tags co-writes `'server'` (not `'harness'`) until super-line
-  ships an `origin` arg — cosmetic (inspector attribution only; echo-break is
-  unaffected since no client shares that origin).
+  `write()` tags co-writes `origin: 'harness'` (needs `@super-line/server` >=
+  0.9.0) — cosmetic (inspector attribution only; echo-break is unaffected since
+  no client shares that origin).
 - **`pglite` backend is an optional peer** (`@super-line/store-pglite`),
   dynamically imported only when `storage.type === 'pglite'` — like the sqlite
   backend. Needs a running Electric service for live `onChange`.

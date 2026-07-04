@@ -2,8 +2,9 @@
 
 Vite + React 19 + TypeScript + Tailwind CSS v4 + shadcn/ui web client for the
 super-harness. The wire lives in **`@super-harness/react`** (headless
-`HarnessClient` + provider/hooks); this app owns only the UI and the
-`?thread=` URL glue. Not the Vercel AI SDK.
+`HarnessClient` + provider/hooks); this app owns only the UI plus the
+node-selectbox/thread-in-state glue (`src/main.tsx`) — nothing is in the URL,
+so a refresh starts a fresh thread. Not the Vercel AI SDK.
 
 ```bash
 pnpm -F @super-harness/web-client dev        # vite dev server
@@ -55,8 +56,8 @@ pnpm dlx shadcn@latest add @ai-elements/<name>   # namespace configured in compo
 
 Two vendored files needed a minimal edit for the installed dep versions:
 
-- `tool.tsx` — dropped two stale `@ts-expect-error` directives (the AI SDK v6
-  approval states they guarded now exist in the installed `ai` types).
+- `tool.tsx` — dropped two stale `@ts-expect-error` directives (the approval
+  states they guarded now exist in the installed `ai` types).
 - `reasoning.tsx` — `ReasoningContent` no longer forwards the Collapsible DOM
   props onto `<Streamdown>` (streamdown narrows `dir` / animation handlers and
   rejected the spread); the props still apply to the `CollapsibleContent`

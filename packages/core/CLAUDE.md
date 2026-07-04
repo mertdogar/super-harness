@@ -37,8 +37,8 @@ drive `run-node` through the `AgentRunner` seam with fake streams.
   suspension — a rejected resume must not destroy it.
 - `abort()` resolves pending gates as aborted, clears suspensions AND the
   follow-up queue (emits `follow_up_queued 0`).
-- Mode `activeTools` is unioned with the built-ins — a mode can't lock out
-  `delegate`/`ask_user`/`todo`.
+- Mode `availableTools` (→ internal `activeTools`) is unioned with the
+  built-ins — a mode can't lock out `delegate`/`ask_user`/`todo`.
 - `delegatesTo` is enforced only in `#spawnChild` (registry membership +
   allowed-edge check → isError result); the delegate tool's schema is a plain
   `z.string()` with the allowed list in the description. `maxDepth` defaults

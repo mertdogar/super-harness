@@ -51,9 +51,10 @@ replica. That round-trip (`node-1 → Postgres → Electric → node-2`) **is** 
 proof. (Node and thread aren't in the URL; resume a past thread from the sidebar —
 threads are central-Postgres-backed, so every node lists them all.)
 
-The **Control Center** on http://localhost:8081 taps node-1's inspector; repoint
-it to `ws://localhost:8802/super-line` (etc.) from its Settings page to inspect
-another node.
+The **Control Center** on http://localhost:8081 connects to node-1, but a
+separate broker-less libp2p/mDNS mesh (independent of the Electric store bus)
+carries presence + inspector traffic cluster-wide — so that one connection
+already surfaces all three nodes, no repointing needed.
 
 Switch backends with `SUPER_HARNESS_STORAGE`: `pglite` (compose default),
 `postgres` (central PG, no Electric — super-line reuses Mastra's pool), or
