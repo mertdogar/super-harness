@@ -4,6 +4,7 @@
 // HarnessEvent stream a consumer wants incrementally (the headless printer). Any
 // consumer — this TUI, a browser chat, an eval — reads a session the same way.
 
+import { HARNESS_NODE_STORE, HARNESS_THREAD_STORE } from './contract'
 import type { HarnessEvent, TodoItem } from './events'
 import type { NodeState, NodeStatus, ThreadDoc } from './tree'
 
@@ -39,8 +40,8 @@ export function subscribeTree(
   threadId: string,
   onChange: (tree: ClientTree) => void,
 ): () => void {
-  const nodeStore = client.store('node')
-  const threadStore = client.store('thread')
+  const nodeStore = client.store(HARNESS_NODE_STORE)
+  const threadStore = client.store(HARNESS_THREAD_STORE)
   const nodeHandles = new Map<string, Handle>()
   const nodes: Record<string, NodeState> = {}
   let thread: ThreadDoc | undefined

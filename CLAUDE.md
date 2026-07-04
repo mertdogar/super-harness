@@ -25,13 +25,17 @@ Run the demo: `pnpm -F @super-harness/dev-server start` (needs
   types, `apply()` fold, client Store view. No Mastra, no server deps.
 - `packages/core` — the engine: `createHarness` (bus, follow-up queue,
   approvals, suspensions, modes, threads). Mastra is a **peer** dep.
-- `packages/server` — super-line binding: `serve(harness, config)`, durable
-  Store sink, contract implementation.
+- `packages/server` — super-line binding: standalone `serve(harness, config)`
+  OR composition into a host server (`harnessStores` + `mountHarness`),
+  durable Store sink, contract implementation.
 - `packages/react` — headless React client: framework-free `HarnessClient`
-  (wire state machine) + `HarnessProvider`/`useHarness` hooks. No components.
+  (wire state machine, owns a socket via `url` or borrows the host app's via
+  `client`) + `HarnessProvider`/`useHarness` hooks. No components.
 - `packages/tui` — terminal client (OpenTUI cockpit + headless shell). **Bun
   only** (`bun:ffi`).
 - `examples/dev-server` — runnable supervisor + worker demo.
+- `examples/composed-host` — the composition reference: a host super-line
+  server mounting the harness beside its own surface, one shared client.
 - `examples/web` — fullstack showcase: Hono backend (`web/server`) + Vite/React/
   shadcn/ai-elements client (`web/client`). See its CLAUDE.md.
 - `examples/mastra-playground` — standalone Mastra scratchpad, NOT wired to
@@ -62,3 +66,18 @@ Run the demo: `pnpm -F @super-harness/dev-server start` (needs
 `shared` is the single source of truth for the contract AND the tree fold
 (`apply`). Server and clients must run the same `shared` version — the fold is
 not forward-compatible across event-vocabulary changes.
+
+## Composition (super-line ≥0.9)
+
+super-harness is a composable super-line **library**: `shared` exports
+`harnessSurface` (a `defineSurface` fragment; every identifier is
+`harness.`-prefixed — requests/events/stores `harness.*`, rooms `harness:*`),
+a host merges it into its contract's `shared` block and mounts with
+`harnessStores` + `mountHarness`; `serve()` is the same pieces standalone.
+See `examples/composed-host` for the four host obligations. All
+`@super-line/*` packages are **peer** deps of shared/server/react (one core
+instance across host + library, per the super-line composition guide). The
+published `@super-line/server`/`client`/`store-*` still carry core as a
+REGULAR dependency (`^0.8.0`), so `pnpm-workspace.yaml` carries an
+`overrides: '@super-line/core': ^0.9.0` shim to force one copy — drop it once
+upstream makes core a true peer.

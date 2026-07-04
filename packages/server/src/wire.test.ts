@@ -89,7 +89,7 @@ describe('wire (serve() over ws, via the Store)', () => {
       transport: webSocketClientTransport({ url: URL }),
       role: 'user',
       params: { userId: 'local' },
-      stores: { node: memoryStoreClient(), thread: memoryStoreClient() },
+      stores: { 'harness.node': memoryStoreClient(), 'harness.thread': memoryStoreClient() },
     } as never)
 
     cleanup = () => {
@@ -102,7 +102,7 @@ describe('wire (serve() over ws, via the Store)', () => {
     let prev: ClientTree = emptyTree()
     let done = false
 
-    await client.join({ threadId: 't1' })
+    await client['harness.join']({ threadId: 't1' })
     const stop = subscribeTree(client as never, 't1', (tree) => {
       for (const e of diffTree(prev, tree)) {
         events.push(e)
@@ -111,7 +111,7 @@ describe('wire (serve() over ws, via the Store)', () => {
       prev = tree
     })
 
-    await client.sendMessage({ threadId: 't1', message: 'weather?' })
+    await client['harness.sendMessage']({ threadId: 't1', message: 'weather?' })
     for (let i = 0; i < 300 && !done; i++) await sleep(20)
     stop()
 
@@ -174,7 +174,7 @@ describe('wire (serve() over ws, via the Store)', () => {
       transport: webSocketClientTransport({ url: URL }),
       role: 'user',
       params: { userId: 'local' },
-      stores: { node: memoryStoreClient(), thread: memoryStoreClient() },
+      stores: { 'harness.node': memoryStoreClient(), 'harness.thread': memoryStoreClient() },
     } as never)
     cleanup = () => {
       client.close()
@@ -183,10 +183,10 @@ describe('wire (serve() over ws, via the Store)', () => {
     }
 
     const suspendedEvents: unknown[] = []
-    client.on('suspended', (s: unknown) => void suspendedEvents.push(s))
+    client.on('harness.suspended', (s: unknown) => void suspendedEvents.push(s))
 
-    await client.join({ threadId: 't2' })
-    await client.sendMessage({ threadId: 't2', message: 'go' })
+    await client['harness.join']({ threadId: 't2' })
+    await client['harness.sendMessage']({ threadId: 't2', message: 'go' })
     for (let i = 0; i < 200 && suspendedEvents.length === 0; i++) await sleep(10)
 
     expect(suspendedEvents[0]).toMatchObject({
@@ -196,7 +196,7 @@ describe('wire (serve() over ws, via the Store)', () => {
       request: { question: 'ok?' },
     })
 
-    await client.resumeMessage({ threadId: 't2', resumeData: { answer: 'yes' } })
+    await client['harness.resumeMessage']({ threadId: 't2', resumeData: { answer: 'yes' } })
     let text: string | undefined
     for (let i = 0; i < 200 && !text; i++) {
       await sleep(10)
@@ -229,7 +229,7 @@ describe('wire (serve() over ws, via the Store)', () => {
       transport: webSocketClientTransport({ url: URL }),
       role: 'user',
       params: { resourceId: 'res-1' },
-      stores: { node: memoryStoreClient(), thread: memoryStoreClient() },
+      stores: { 'harness.node': memoryStoreClient(), 'harness.thread': memoryStoreClient() },
     } as never)
     cleanup = () => {
       client.close()
@@ -238,13 +238,13 @@ describe('wire (serve() over ws, via the Store)', () => {
     }
 
     const renamed: unknown[] = []
-    client.on('threadRenamed', (p: unknown) => void renamed.push(p))
+    client.on('harness.threadRenamed', (p: unknown) => void renamed.push(p))
 
     // Thread + client share resource 'res-1' — the rename broadcasts to that
-    // resource room, which the client joined at connect.
+    // resource room, which the client joined lazily via harness.join.
     await harness.threads.create({ threadId: 't3', resourceId: 'res-1' })
-    await client.join({ threadId: 't3' })
-    await client.sendMessage({ threadId: 't3', message: 'plan my trip' })
+    await client['harness.join']({ threadId: 't3' })
+    await client['harness.sendMessage']({ threadId: 't3', message: 'plan my trip' })
     for (let i = 0; i < 200 && renamed.length === 0; i++) await sleep(10)
 
     expect(renamed[0]).toMatchObject({ threadId: 't3', title: 'Title: plan my trip' })
@@ -264,7 +264,7 @@ describe('wire (serve() over ws, via the Store)', () => {
         transport: webSocketClientTransport({ url: URL }),
         role: 'user',
         params: { resourceId: 'res-1' },
-        stores: { node: memoryStoreClient(), thread: memoryStoreClient() },
+        stores: { 'harness.node': memoryStoreClient(), 'harness.thread': memoryStoreClient() },
       } as never)
     const a = mk()
     const b = mk()
@@ -277,22 +277,22 @@ describe('wire (serve() over ws, via the Store)', () => {
 
     const created: any[] = []
     const deleted: any[] = []
-    b.on('threadCreated', (p: unknown) => void created.push(p))
-    b.on('threadDeleted', (p: unknown) => void deleted.push(p))
+    b.on('harness.threadCreated', (p: unknown) => void created.push(p))
+    b.on('harness.threadDeleted', (p: unknown) => void deleted.push(p))
     // Force B's connection so it is in the resource room before A creates.
-    await b.listThreads({})
+    await b['harness.listThreads']({})
 
-    const { threadId } = await a.createThread({ title: 'Trip' })
+    const { threadId } = await a['harness.createThread']({ title: 'Trip' })
     for (let i = 0; i < 200 && created.length === 0; i++) await sleep(10)
     expect(created[0]).toMatchObject({ id: threadId, resourceId: 'res-1' })
 
     // A thread under a different resource must not leak into A's scoped list.
     await harness.threads.create({ threadId: 'foreign', resourceId: 'res-2' })
-    const { threads } = await a.listThreads({})
+    const { threads } = await a['harness.listThreads']({})
     expect(threads.map((t: { id: string }) => t.id)).toContain(threadId)
     expect(threads.map((t: { id: string }) => t.id)).not.toContain('foreign')
 
-    await a.deleteThread({ threadId })
+    await a['harness.deleteThread']({ threadId })
     for (let i = 0; i < 200 && deleted.length === 0; i++) await sleep(10)
     expect(deleted[0]).toMatchObject({ threadId })
   })
@@ -302,10 +302,10 @@ describe('wire (serve() over ws, via the Store)', () => {
     const { server, close } = await serve(harness, { storage: { type: 'memory' } })
     cleanup = close
 
-    const threadStore = server.store('thread') as unknown as {
+    const threadStore = server.store('harness.thread') as unknown as {
       read(id: string): Promise<{ data?: { nodes?: Record<string, unknown> } } | undefined>
     }
-    const nodeStore = server.store('node') as unknown as { read(id: string): Promise<unknown> }
+    const nodeStore = server.store('harness.node') as unknown as { read(id: string): Promise<unknown> }
 
     await harness.threads.create({ threadId: 'td' })
     await harness.sendMessage({ threadId: 'td', content: 'weather?' })

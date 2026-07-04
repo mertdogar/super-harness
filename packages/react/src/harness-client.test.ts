@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest"
+import { afterEach, describe, expect, it, vi } from "vitest"
 import type { NodeState, ThreadDoc } from "@super-harness/shared"
 import { createHarnessClient, type HarnessClient, type HarnessClientConfig } from "./harness-client"
 
@@ -27,7 +27,10 @@ class FakeHandle {
 
 function fakeWire(overrides: Record<string, unknown> = {}) {
   const handles = new Map<string, FakeHandle>()
-  const handlers = new Map<string, (p: unknown) => void>()
+  // Set per event, like the real client: two attachments coexist, and an
+  // unsubscribe removes only its own handler (a name-keyed Map would let a
+  // stale unsub delete a successor registration and hide duplicates).
+  const handlers = new Map<string, Set<(p: unknown) => void>>()
   const calls: Record<string, number> = {}
   const count = (name: string) => {
     calls[name] = (calls[name] ?? 0) + 1
@@ -43,20 +46,22 @@ function fakeWire(overrides: Record<string, unknown> = {}) {
   }
   const wire = {
     connected: true,
-    join: async () => (count("join"), { ok: true }),
-    sendMessage: async () => (count("sendMessage"), { ok: true }),
-    resumeMessage: async () => (count("resumeMessage"), { ok: true }),
-    abort: async () => (count("abort"), { ok: true }),
-    respondToApproval: async () => (count("respondToApproval"), { ok: true }),
-    switchMode: async () => (count("switchMode"), { ok: true }),
-    listModes: async () => (count("listModes"), { modes: [], defaultModeId: undefined }),
-    listThreads: async () => (count("listThreads"), { threads: [] }),
-    createThread: async () => (count("createThread"), { threadId: "fresh-thread" }),
-    deleteThread: async () => (count("deleteThread"), { ok: true }),
-    renameThread: async () => (count("renameThread"), { ok: true }),
+    "harness.join": async () => (count("join"), { ok: true }),
+    "harness.sendMessage": async () => (count("sendMessage"), { ok: true }),
+    "harness.resumeMessage": async () => (count("resumeMessage"), { ok: true }),
+    "harness.abort": async () => (count("abort"), { ok: true }),
+    "harness.respondToApproval": async () => (count("respondToApproval"), { ok: true }),
+    "harness.switchMode": async () => (count("switchMode"), { ok: true }),
+    "harness.listModes": async () => (count("listModes"), { modes: [], defaultModeId: undefined }),
+    "harness.listThreads": async () => (count("listThreads"), { threads: [] }),
+    "harness.createThread": async () => (count("createThread"), { threadId: "fresh-thread" }),
+    "harness.deleteThread": async () => (count("deleteThread"), { ok: true }),
+    "harness.renameThread": async () => (count("renameThread"), { ok: true }),
     on: (name: string, cb: (p: unknown) => void) => {
-      handlers.set(name, cb)
-      return () => handlers.delete(name)
+      let set = handlers.get(name)
+      if (!set) handlers.set(name, (set = new Set()))
+      set.add(cb)
+      return () => set.delete(cb)
     },
     // Real client close() is terminal — mirror that so identity/abandon
     // guards are actually exercised, not vacuously satisfied.
@@ -72,11 +77,13 @@ function fakeWire(overrides: Record<string, unknown> = {}) {
     raw: wire,
     handle,
     calls,
-    emit: (name: string, p: unknown) => handlers.get(name)?.(p),
+    emit: (name: string, p: unknown) => {
+      for (const cb of handlers.get(name) ?? []) cb(p)
+    },
   }
 }
 
-type WireInstance = Exclude<NonNullable<HarnessClientConfig["wire"]>, (...args: never) => unknown>
+type WireInstance = Exclude<NonNullable<HarnessClientConfig["client"]>, (...args: never) => unknown>
 
 function node(partial: Partial<NodeState> & { nodeId: string }): NodeState {
   return {
@@ -100,8 +107,8 @@ function writeTree(f: Fake, threadId: string, turns: string[], nodes: Record<str
   for (const [id, n] of Object.entries(nodes)) {
     skeleton.nodes[id] = { parentNodeId: n.parentNodeId, depth: n.depth, agentType: n.agentType, childOrder: n.childOrder }
   }
-  f.handle("thread", threadId).write(skeleton)
-  for (const [id, n] of Object.entries(nodes)) f.handle("node", id).write(n)
+  f.handle("harness.thread", threadId).write(skeleton)
+  for (const [id, n] of Object.entries(nodes)) f.handle("harness.node", id).write(n)
 }
 
 const clients: HarnessClient[] = []
@@ -111,7 +118,7 @@ afterEach(() => {
 
 async function setup(overrides: Record<string, unknown> = {}) {
   const f = fakeWire(overrides)
-  const client = createHarnessClient({ url: "ws://test", threadId: "t1", wire: f.wire })
+  const client = createHarnessClient({ threadId: "t1", client: f.wire })
   clients.push(client)
   await client.connect()
   return { f, client }
@@ -171,8 +178,8 @@ describe("HarnessClient state machine", () => {
 
   it("keeps the prompt and sets a notice when reply is rejected (ok:false)", async () => {
     const ok = { value: false }
-    const { f, client } = await setup({ resumeMessage: async () => ({ ok: ok.value }) })
-    f.emit("suspended", { threadId: "t1", nodeId: "r1", toolCallId: "a1", toolName: "ask_user", request: { question: "q" } })
+    const { f, client } = await setup({ "harness.resumeMessage": async () => ({ ok: ok.value }) })
+    f.emit("harness.suspended", { threadId: "t1", nodeId: "r1", toolCallId: "a1", toolName: "ask_user", request: { question: "q" } })
     expect(client.getSnapshot().pendingAsk).not.toBeNull()
 
     await client.reply("Izmir")
@@ -189,7 +196,7 @@ describe("HarnessClient state machine", () => {
     const { f, client } = await setup()
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "thinking" }) })
     expect(client.getSnapshot().busy).toBe(true)
-    f.emit("suspended", { threadId: "t1", nodeId: "r1", toolCallId: "a1", toolName: "ask_user", request: "q" })
+    f.emit("harness.suspended", { threadId: "t1", nodeId: "r1", toolCallId: "a1", toolName: "ask_user", request: "q" })
     expect(client.getSnapshot().busy).toBe(false)
     expect(client.getSnapshot().pendingAsk).toMatchObject({ toolCallId: "a1" })
   })
@@ -197,8 +204,8 @@ describe("HarnessClient state machine", () => {
   it("abort clears busy/pendings/queue locally (tui parity)", async () => {
     const { f, client } = await setup()
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "running" }) })
-    f.emit("approvalRequired", { threadId: "t1", nodeId: "r1", toolCallId: "g1", toolName: "send_report", args: {} })
-    f.emit("followUpQueued", { threadId: "t1", count: 2 })
+    f.emit("harness.approvalRequired", { threadId: "t1", nodeId: "r1", toolCallId: "g1", toolName: "send_report", args: {} })
+    f.emit("harness.followUpQueued", { threadId: "t1", count: 2 })
     expect(client.getSnapshot().busy).toBe(true) // genuinely busy before abort
     expect(client.getSnapshot().pendingApproval).not.toBeNull()
 
@@ -219,7 +226,7 @@ describe("HarnessClient state machine", () => {
         tools: { g1: { toolCallId: "g1", toolName: "send_report", status: "input-available", argsText: "", args: {} } },
       }),
     })
-    f.emit("approvalRequired", { threadId: "t1", nodeId: "r1", toolCallId: "g1", toolName: "send_report", args: {} })
+    f.emit("harness.approvalRequired", { threadId: "t1", nodeId: "r1", toolCallId: "g1", toolName: "send_report", args: {} })
     expect(client.getSnapshot().pendingApproval).toMatchObject({ toolCallId: "g1" })
 
     // approval resolved elsewhere → the tool executes and settles in the tree
@@ -235,15 +242,15 @@ describe("HarnessClient state machine", () => {
 
   it("dismissAsk drops a prompt the server no longer knows about", async () => {
     const { f, client } = await setup()
-    f.emit("suspended", { threadId: "t1", nodeId: "r1", toolCallId: "a1", toolName: "ask_user", request: "q" })
+    f.emit("harness.suspended", { threadId: "t1", nodeId: "r1", toolCallId: "a1", toolName: "ask_user", request: "q" })
     client.dismissAsk()
     expect(client.getSnapshot().pendingAsk).toBeNull()
   })
 
   it("filters room events by the active thread", async () => {
     const { f, client } = await setup()
-    f.emit("suspended", { threadId: "OTHER", nodeId: "r1", toolCallId: "a1", toolName: "ask_user", request: "q" })
-    f.emit("modeChanged", { threadId: "OTHER", modeId: "terse", previousModeId: "chat" })
+    f.emit("harness.suspended", { threadId: "OTHER", nodeId: "r1", toolCallId: "a1", toolName: "ask_user", request: "q" })
+    f.emit("harness.modeChanged", { threadId: "OTHER", modeId: "terse", previousModeId: "chat" })
     expect(client.getSnapshot().pendingAsk).toBeNull()
     expect(client.getSnapshot().modeId).toBeNull()
   })
@@ -252,11 +259,11 @@ describe("HarnessClient state machine", () => {
     // Unlike suspended/modeChanged above, threadRenamed has NO active-thread
     // filter — a title can change on a thread the user isn't currently viewing.
     const { f, client } = await setup({
-      listThreads: async () => ({ threads: [{ id: "t1", resourceId: "t1" }, { id: "other", resourceId: "other" }] }),
+      "harness.listThreads": async () => ({ threads: [{ id: "t1", resourceId: "t1" }, { id: "other", resourceId: "other" }] }),
     })
     await client.refreshThreads()
 
-    f.emit("threadRenamed", { threadId: "other", title: "New Title" })
+    f.emit("harness.threadRenamed", { threadId: "other", title: "New Title" })
 
     expect(client.getSnapshot().threads).toEqual([
       { id: "t1", resourceId: "t1" },
@@ -269,12 +276,12 @@ describe("HarnessClient state machine", () => {
     // fakeWire's own f.calls counter.
     let listCalls = 0
     const { f, client } = await setup({
-      listThreads: async () => (listCalls++, { threads: [{ id: "t1", resourceId: "t1" }] }),
+      "harness.listThreads": async () => (listCalls++, { threads: [{ id: "t1", resourceId: "t1" }] }),
     })
     await client.refreshThreads()
     const before = listCalls
 
-    f.emit("threadRenamed", { threadId: "unseen", title: "New" })
+    f.emit("harness.threadRenamed", { threadId: "unseen", title: "New" })
     await new Promise((r) => setTimeout(r, 0))
 
     expect(listCalls).toBe(before + 1)
@@ -282,26 +289,26 @@ describe("HarnessClient state machine", () => {
 
   it("threadCreated inserts into the sidebar and dedups its own echo", async () => {
     const { f, client } = await setup({
-      listThreads: async () => ({ threads: [{ id: "t1", resourceId: "web" }] }),
+      "harness.listThreads": async () => ({ threads: [{ id: "t1", resourceId: "web" }] }),
     })
     await client.refreshThreads()
 
-    f.emit("threadCreated", { id: "t2", resourceId: "web", title: "Trip" })
+    f.emit("harness.threadCreated", { id: "t2", resourceId: "web", title: "Trip" })
     expect(client.getSnapshot().threads.map((t) => t.id)).toEqual(["t2", "t1"])
 
     // Our own create echoes back — must not double-insert.
-    f.emit("threadCreated", { id: "t2", resourceId: "web", title: "Trip" })
+    f.emit("harness.threadCreated", { id: "t2", resourceId: "web", title: "Trip" })
     expect(client.getSnapshot().threads.filter((t) => t.id === "t2")).toHaveLength(1)
   })
 
   it("threadDeleted removes a background thread without touching the active view", async () => {
     const { f, client } = await setup({
-      listThreads: async () => ({ threads: [{ id: "t1", resourceId: "web" }, { id: "other", resourceId: "web" }] }),
+      "harness.listThreads": async () => ({ threads: [{ id: "t1", resourceId: "web" }, { id: "other", resourceId: "web" }] }),
     })
     await client.refreshThreads()
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "hi", status: "complete" }) })
 
-    f.emit("threadDeleted", { threadId: "other" })
+    f.emit("harness.threadDeleted", { threadId: "other" })
 
     expect(client.getSnapshot().threads.map((t) => t.id)).toEqual(["t1"])
     expect(client.getSnapshot().activeThreadDeleted).toBe(false)
@@ -310,13 +317,13 @@ describe("HarnessClient state machine", () => {
 
   it("threadDeleted of the ACTIVE thread flips activeThreadDeleted and blanks the view", async () => {
     const { f, client } = await setup({
-      listThreads: async () => ({ threads: [{ id: "t1", resourceId: "web" }] }),
+      "harness.listThreads": async () => ({ threads: [{ id: "t1", resourceId: "web" }] }),
     })
     await client.refreshThreads()
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "hi", status: "complete" }) })
     expect(client.getSnapshot().tree.turns).toEqual(["r1"])
 
-    f.emit("threadDeleted", { threadId: "t1" }) // t1 is the active thread
+    f.emit("harness.threadDeleted", { threadId: "t1" }) // t1 is the active thread
 
     const s = client.getSnapshot()
     expect(s.activeThreadDeleted).toBe(true)
@@ -328,7 +335,7 @@ describe("HarnessClient state machine", () => {
   it("switchThread clears the activeThreadDeleted limbo", async () => {
     const { f, client } = await setup()
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", status: "complete" }) })
-    f.emit("threadDeleted", { threadId: "t1" })
+    f.emit("harness.threadDeleted", { threadId: "t1" })
     expect(client.getSnapshot().activeThreadDeleted).toBe(true)
 
     await client.switchThread("t2")
@@ -343,14 +350,14 @@ describe("HarnessClient state machine", () => {
     let release!: () => void
     const gate = new Promise<void>((r) => (release = r))
     const wireA = fakeWire({
-      join: async () => {
+      "harness.join": async () => {
         await gate
         return { ok: true }
       },
     })
     const wireB = fakeWire()
     const instances = [wireA, wireB]
-    const client = createHarnessClient({ url: "ws://test", threadId: "t1", wire: () => instances.shift()!.wire })
+    const client = createHarnessClient({ threadId: "t1", client: () => instances.shift()!.wire })
     clients.push(client)
 
     const first = client.connect() // mount → wire A, join parked
@@ -369,23 +376,102 @@ describe("HarnessClient state machine", () => {
     expect(client.getSnapshot().tree.turns).toEqual(["rB"])
   })
 
+  it("borrowed StrictMode cycle: close() mid-connect leaves ONE poll and no duplicate listeners", async () => {
+    // Both connects receive the SAME borrowed instance, so identity can't
+    // distinguish the sessions — the epoch guard must. A leaked first session
+    // would double-attach listeners and leave two reconnect polls running.
+    vi.useFakeTimers()
+    try {
+      let release!: () => void
+      const gate = new Promise<void>((r) => (release = r))
+      let joins = 0
+      const f = fakeWire({
+        "harness.join": async () => {
+          if (++joins === 1) await gate
+          return { ok: true }
+        },
+      })
+      const client = createHarnessClient({ threadId: "t1", client: f.wire })
+      clients.push(client)
+
+      const first = client.connect() // borrowed instance, join parked
+      client.close() //                 StrictMode unmount mid-handshake
+      const second = client.connect() // remount on the SAME instance
+      release()
+      await Promise.all([first, second])
+      expect(client.getSnapshot().connected).toBe(true)
+
+      // one live listener per event — a leaked attachment would double-insert
+      f.emit("harness.threadCreated", { id: "tX", resourceId: "r" })
+      expect(client.getSnapshot().threads.filter((t) => t.id === "tX")).toHaveLength(1)
+
+      // one reconnect poll — a leaked one would re-join twice per recovery
+      ;(f.raw as { connected: boolean }).connected = false
+      await vi.advanceTimersByTimeAsync(1000)
+      ;(f.raw as { connected: boolean }).connected = true
+      const before = joins
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(joins).toBe(before + 1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("in activeThreadDeleted limbo the poll does NOT re-join (a re-join would resurrect the purged doc)", async () => {
+    vi.useFakeTimers()
+    try {
+      let joins = 0
+      const f = fakeWire({
+        "harness.join": async () => (joins++, { ok: true }),
+      })
+      const client = createHarnessClient({ threadId: "t1", client: f.wire })
+      clients.push(client)
+      await client.connect()
+      f.emit("harness.threadDeleted", { threadId: "t1" }) // active thread → limbo
+      expect(client.getSnapshot().activeThreadDeleted).toBe(true)
+
+      const before = joins
+      ;(f.raw as { connected: boolean }).connected = false
+      await vi.advanceTimersByTimeAsync(1000)
+      ;(f.raw as { connected: boolean }).connected = true
+      await vi.advanceTimersByTimeAsync(1000)
+      expect(joins).toBe(before) // no resurrection
+      expect(client.getSnapshot().connected).toBe(true) // but connectivity still tracked
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it("borrowed client: close() detaches the harness listeners but never closes the host's client", async () => {
+    const f = fakeWire()
+    const client = createHarnessClient({ threadId: "t1", client: f.wire })
+    await client.connect()
+
+    client.close()
+    expect((f.raw as { connected: boolean }).connected).toBe(true) // host socket untouched
+
+    // detached: a post-close event must not resurrect state
+    f.emit("harness.suspended", { threadId: "t1", nodeId: "r1", toolCallId: "a1", toolName: "ask_user", request: "q" })
+    expect(client.getSnapshot().pendingAsk).toBeNull()
+  })
+
   it("switchThread detaches the old subscription BEFORE joining — a stale write mid-join is inert", async () => {
     let releaseJoin!: () => void
     let joins = 0
     const f = fakeWire({
-      join: async () => {
+      "harness.join": async () => {
         // first join (connect) resolves; the switchThread join parks
         if (++joins < 2) return { ok: true }
         await new Promise<void>((r) => (releaseJoin = r))
         return { ok: true }
       },
     })
-    const client = createHarnessClient({ url: "ws://test", threadId: "t1", wire: f.wire })
+    const client = createHarnessClient({ threadId: "t1", client: f.wire })
     clients.push(client)
     await client.connect()
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "old", status: "complete" }) })
-    const oldThreadHandle = f.handle("thread", "t1")
-    const oldNodeHandle = f.handle("node", "r1")
+    const oldThreadHandle = f.handle("harness.thread", "t1")
+    const oldNodeHandle = f.handle("harness.node", "r1")
 
     const switching = client.switchThread("t2") // join for t2 is parked
     // stale old-thread writes land DURING the switch — the early detach must eat them

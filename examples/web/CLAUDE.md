@@ -14,9 +14,10 @@ Two workspace packages (glob `examples/web/*`): `server/` (Hono +
   `libsql`). Mastra's ground truth and `serve()`'s tree Stores always share one
   database so they stay in sync:
   - `libsql` — one `@libsql/client` (`file:./dev.db`) backs both `LibSQLStore`
-    (threads, recall, per-thread mode) AND the durable tree (`superline_node` /
-    `superline_thread`). Durable here (unlike dev-server); refresh/late-join
-    rebuild full history. Gitignored; delete `dev.db` to reset. (No `harness.db`.)
+    (threads, recall, per-thread mode) AND the durable tree
+    (`superline_harness_node` / `superline_harness_thread`). Durable here
+    (unlike dev-server); refresh/late-join rebuild full history. Gitignored;
+    delete `dev.db` to reset. (No `harness.db`.)
   - `postgres` — `@mastra/pg` `PostgresStore(PG_URL)`; `serve()` **reuses its
     pool** via `{ type: 'postgres', db: pg.db }` (superline_* beside mastra_* in
     one central PG, no Electric).

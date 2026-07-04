@@ -112,11 +112,11 @@ export class HarnessSession {
       transport: webSocketClientTransport({ url: this.config.url }),
       role: "user",
       params: this.config.params,
-      stores: { node: memoryStoreClient(), thread: memoryStoreClient() },
+      stores: { "harness.node": memoryStoreClient(), "harness.thread": memoryStoreClient() },
     })
     this.client = client
 
-    client.on("suspended", (payload) => {
+    client.on("harness.suspended", (payload) => {
       if (payload.threadId !== this.threadId) return
       this.busy = false // the turn is parked server-side until /reply
       this.pending = {
@@ -134,18 +134,18 @@ export class HarnessSession {
       })
     })
 
-    client.on("approvalRequired", (payload) => {
+    client.on("harness.approvalRequired", (payload) => {
       if (payload.threadId !== this.threadId) return
       this.pendingApproval = { toolCallId: payload.toolCallId, toolName: payload.toolName, args: payload.args }
       this.handlers.onStatus({ kind: "approval_required", toolName: payload.toolName, args: payload.args })
     })
 
-    client.on("modeChanged", (payload) => {
+    client.on("harness.modeChanged", (payload) => {
       if (payload.threadId !== this.threadId) return
       this.handlers.onStatus({ kind: "info", message: `mode: ${payload.previousModeId} → ${payload.modeId}` })
     })
 
-    client.on("followUpQueued", (payload) => {
+    client.on("harness.followUpQueued", (payload) => {
       if (payload.threadId !== this.threadId) return
       this.handlers.onStatus({ kind: "info", message: `follow-ups queued: ${payload.count}` })
     })
@@ -218,7 +218,7 @@ export class HarnessSession {
 
   private async joinCurrent(): Promise<void> {
     if (!this.client) return
-    await this.client.join({ threadId: this.threadId })
+    await this.client["harness.join"]({ threadId: this.threadId })
   }
 
   private emitLine(text: string): void {
@@ -235,7 +235,7 @@ export class HarnessSession {
     try {
       await this.joinCurrent()
       // Busy thread? The server queues it and broadcasts followUpQueued.
-      await this.client.sendMessage({ threadId: this.threadId, message })
+      await this.client["harness.sendMessage"]({ threadId: this.threadId, message })
     } catch (error) {
       this.handlers.onStatus({ kind: "error", message: errMessage(error) })
     }
@@ -249,7 +249,7 @@ export class HarnessSession {
     if (!this.client) return
     const { toolCallId } = this.pendingApproval
     try {
-      const res = await this.client.respondToApproval({ threadId: this.threadId, toolCallId, decision, message })
+      const res = await this.client["harness.respondToApproval"]({ threadId: this.threadId, toolCallId, decision, message })
       if (res.ok) this.pendingApproval = null
       else this.handlers.onStatus({ kind: "error", message: "approval was rejected by the server" })
     } catch (error) {
@@ -260,7 +260,7 @@ export class HarnessSession {
   async switchMode(modeId: string): Promise<void> {
     if (!this.client) return
     try {
-      const res = await this.client.switchMode({ threadId: this.threadId, modeId })
+      const res = await this.client["harness.switchMode"]({ threadId: this.threadId, modeId })
       if (!res.ok) this.handlers.onStatus({ kind: "info", message: `mode switch failed (unknown mode?)` })
     } catch (error) {
       this.handlers.onStatus({ kind: "error", message: errMessage(error) })
@@ -270,7 +270,7 @@ export class HarnessSession {
   async listModes(): Promise<void> {
     if (!this.client) return
     try {
-      const { modes, defaultModeId } = await this.client.listModes({})
+      const { modes, defaultModeId } = await this.client["harness.listModes"]({})
       if (modes.length === 0) return this.info("no modes configured")
       for (const m of modes) {
         this.emitLine(`${m.id === defaultModeId ? "*" : " "} ${m.id}${m.name ? `  (${m.name})` : ""}${m.description ? ` — ${m.description}` : ""}`)
@@ -283,7 +283,7 @@ export class HarnessSession {
   async listThreads(): Promise<void> {
     if (!this.client) return
     try {
-      const { threads } = await this.client.listThreads({})
+      const { threads } = await this.client["harness.listThreads"]({})
       if (threads.length === 0) return this.info("no threads (is a memory store configured on the harness?)")
       for (const t of threads) {
         const marker = t.id === this.threadId ? "*" : " "
@@ -310,7 +310,7 @@ export class HarnessSession {
           : { answer }
     this.pending = null
     try {
-      await this.client.resumeMessage({ threadId: this.threadId, toolCallId, resumeData })
+      await this.client["harness.resumeMessage"]({ threadId: this.threadId, toolCallId, resumeData })
     } catch (error) {
       this.handlers.onStatus({ kind: "error", message: errMessage(error) })
     }
@@ -319,7 +319,7 @@ export class HarnessSession {
   async abort(): Promise<void> {
     if (!this.client) return
     try {
-      await this.client.abort({ threadId: this.threadId })
+      await this.client["harness.abort"]({ threadId: this.threadId })
       this.busy = false
       this.pending = null // the server cleared suspensions and declined approvals
       this.pendingApproval = null

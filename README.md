@@ -263,27 +263,27 @@ Every progress signal is a `HarnessEvent` — a zod discriminated union with a c
 
 ### Server side
 
-`serve(harness, config)` (in `@super-harness/server`) wires a super-line server with two Store namespaces (`node`, `thread`) and the control-plane contract, subscribed to the harness bus:
+`serve(harness, config)` (in `@super-harness/server`) wires a super-line server with two Store namespaces (`harness.node`, `harness.thread`) and the control-plane contract, subscribed to the harness bus. It is a thin standalone host over two composable exports — `harnessStores(storage)` and `mountHarness(srv, harness)` — that a **host app with its own super-line server** uses instead: merge `harnessSurface` into the contract's `shared` block, spread the stores and handlers, and the harness rides the host's socket and auth (see `examples/composed-host`).
 
 - **`Harness`** (in `@super-harness/core`) is the session runtime. `sendMessage` drives the supervisor node (or queues a follow-up on a busy thread); the `delegate` built-in spawns child nodes along the agent's `delegatesTo` edges (depth-gated by `maxDepth`); `ask_user` parks a suspension in the per-thread registry; gated tools park an approval; every event lands on the bus after the fold.
 - **run-node** drives one node's `agent.stream()` (or `agent.resumeStream()`), injecting a `RequestContext` carrying the harness runtime and the built-in toolset. A `tool-call-approval` chunk suspends the run (the stream closes); run-node returns the parked approval and the Harness resolves it via `agent.approveToolCall`/`declineToolCall`, driving the returned continuation stream through the same node.
 - **chunk-adapter** maps each Mastra `fullStream` chunk to `HarnessEvent` bodies — and suppresses the parent-level tool chunks for a `delegate` call (the child node represents it).
 - **Projector** folds those events into one live tree per thread via `apply` — the harness's own copy backs `getTree`/`tree_changed`; `serve` runs a second fold into the Store-backed sink.
 - **sink** (`superlineTreeSink`, in `@super-harness/server`) is the durable write path: it `create`s each Resource (granted to the thread's principals) before `open`ing it, so a client that opens the Resource always finds a live, readable handle. The port it implements (`TreeSink`) is two methods — that's the whole seam a custom persistence layer fills.
-- **Ephemeral signals** split by axis. Content signals (`suspended`, `approvalRequired`, `modeChanged`, `followUpQueued`) broadcast to the per-**thread** room; thread-list signals (`threadCreated`, `threadRenamed`, `threadDeleted`) broadcast to the per-**resource** room, so every one of a resource's tabs keeps its sidebar in sync whatever thread each is viewing. Requests (`respondToApproval`, `switchMode`, `listThreads`, …) map 1:1 onto Harness methods.
+- **Ephemeral signals** split by axis. Content signals (`harness.suspended`, `harness.approvalRequired`, `harness.modeChanged`, `harness.followUpQueued`) broadcast to the per-**thread** room (`harness:thread:{id}`); thread-list signals (`harness.threadCreated`, `harness.threadRenamed`, `harness.threadDeleted`) broadcast to the per-**resource** room (`harness:resource:{id}`), so every one of a resource's tabs keeps its sidebar in sync whatever thread each is viewing. Requests (`harness.respondToApproval`, `harness.switchMode`, `harness.listThreads`, …) map 1:1 onto Harness methods.
 
 ### The contract
 
-The tree itself does **not** ride the super-line contract — it rides the Stores. The contract carries only the turn **control plane** plus the one signal that is genuinely ephemeral (not state):
+The tree itself does **not** ride the super-line contract — it rides the Stores. The contract carries only the turn **control plane** plus the one signal that is genuinely ephemeral (not state). It is exported as `harnessSurface`, a composable `defineSurface` fragment whose keys are all `harness.`-prefixed so a host contract can merge it collision-free:
 
-- `join(threadId)` — join the thread's room; the server pre-creates the thread Resource granted to this connection (a client `open()` on a not-yet-existent Resource is a dead handle, so it must exist before the client subscribes).
-- `sendMessage(threadId, message)` — start a turn (queued server-side if one is running).
-- `resumeMessage(threadId, toolCallId?, resumeData)` — answer a pending `ask_user`.
-- `respondToApproval(threadId, toolCallId?, decision, message?)` — resolve a gated tool call (`approve/decline/always_allow/always_allow_category`).
-- `switchMode` / `listModes` — per-thread mode control.
-- `listThreads` / `createThread` / `renameThread` / `deleteThread` — thread management (needs `memory` on the harness). Scoping is opt-in: a connection that carries a `resourceId` gets a list scoped to it and creates pinned to it (server-authoritative); without one, the list is unscoped — backward-compatible with the tui/dev-server.
-- `abort(threadId)` — abort the running turn.
-- Events (server→client): content signals on the thread room — `suspended` (an `ask_user` prompt is waiting), `approvalRequired` (a gated tool wants a decision), `modeChanged`, `followUpQueued` — and thread-list signals on the resource room — `threadCreated`, `threadRenamed` (also carries auto-generated titles), `threadDeleted`. All ephemeral — requests for input or sidebar deltas, not durable state — so they're events rather than Store writes.
+- `harness.join(threadId)` — join the thread's room; the server pre-creates the thread Resource granted to this connection (a client `open()` on a not-yet-existent Resource is a dead handle, so it must exist before the client subscribes).
+- `harness.sendMessage(threadId, message)` — start a turn (queued server-side if one is running).
+- `harness.resumeMessage(threadId, toolCallId?, resumeData)` — answer a pending `ask_user`.
+- `harness.respondToApproval(threadId, toolCallId?, decision, message?)` — resolve a gated tool call (`approve/decline/always_allow/always_allow_category`).
+- `harness.switchMode` / `harness.listModes` — per-thread mode control.
+- `harness.listThreads` / `harness.createThread` / `harness.renameThread` / `harness.deleteThread` — thread management (needs `memory` on the harness). Scoping is opt-in: a connection that carries a `resourceId` gets a list scoped to it and creates pinned to it (server-authoritative); without one, the list is unscoped — backward-compatible with the tui/dev-server.
+- `harness.abort(threadId)` — abort the running turn.
+- Events (server→client): content signals on the thread room — `harness.suspended` (an `ask_user` prompt is waiting), `harness.approvalRequired` (a gated tool wants a decision), `harness.modeChanged`, `harness.followUpQueued` — and thread-list signals on the resource room — `harness.threadCreated`, `harness.threadRenamed` (also carries auto-generated titles), `harness.threadDeleted`. All ephemeral — requests for input or sidebar deltas, not durable state — so they're events rather than Store writes.
 
 ### Built-in tools
 

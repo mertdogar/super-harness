@@ -203,6 +203,9 @@ settings:
   autoInstallPeers: true
   excludeLinksFromLockfile: false
 
+overrides:
+  '@super-line/core': ^0.9.0
+
 importers:
 
   .:
@@ -225,6 +228,45 @@ importers:
       vitest:
         specifier: ^4.1.2
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@25.9.4)(vite@7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5))
+
+  examples/composed-host:
+    dependencies:
+      '@ai-sdk/gateway':
+        specifier: ^4.0.3
+        version: 4.0.8(zod@4.4.3)
+      '@mastra/core':
+        specifier: 1.49.0-alpha.2
+        version: 1.49.0-alpha.2(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+      '@super-harness/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@super-harness/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@super-harness/server':
+        specifier: workspace:*
+        version: link:../../packages/server
+      '@super-harness/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@super-line/client':
+        specifier: ^0.7.0
+        version: 0.7.0
+      '@super-line/core':
+        specifier: ^0.9.0
+        version: 0.9.0
+      '@super-line/server':
+        specifier: ^0.9.0
+        version: 0.9.0(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@super-line/store-memory':
+        specifier: ^0.8.0
+        version: 0.8.0
+      '@super-line/transport-websocket':
+        specifier: ^0.5.0
+        version: 0.5.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   examples/dev-server:
     dependencies:
@@ -440,9 +482,6 @@ importers:
       '@super-harness/shared':
         specifier: workspace:*
         version: link:../shared
-      '@super-line/core':
-        specifier: ^0.8.0
-        version: 0.8.0
       nanoid:
         specifier: ^5.1.7
         version: 5.1.16
@@ -462,6 +501,7 @@ importers:
       '@super-harness/shared':
         specifier: workspace:*
         version: link:../shared
+    devDependencies:
       '@super-line/client':
         specifier: ^0.7.0
         version: 0.7.0
@@ -471,7 +511,6 @@ importers:
       '@super-line/transport-websocket':
         specifier: ^0.5.0
         version: 0.5.0
-    devDependencies:
       '@types/react':
         specifier: ^19.2.0
         version: 19.2.17
@@ -490,18 +529,6 @@ importers:
       '@super-harness/shared':
         specifier: workspace:*
         version: link:../shared
-      '@super-line/core':
-        specifier: ^0.8.0
-        version: 0.8.0
-      '@super-line/server':
-        specifier: ^0.9.0
-        version: 0.9.0(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
-      '@super-line/store-memory':
-        specifier: ^0.8.0
-        version: 0.8.0
-      '@super-line/store-sqlite':
-        specifier: ^0.3.0
-        version: 0.3.0
     devDependencies:
       '@electric-sql/pglite':
         specifier: ^0.5.4
@@ -515,25 +542,40 @@ importers:
       '@super-line/client':
         specifier: ^0.7.0
         version: 0.7.0
+      '@super-line/core':
+        specifier: ^0.9.0
+        version: 0.9.0
+      '@super-line/server':
+        specifier: ^0.9.0
+        version: 0.9.0(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@super-line/store-memory':
+        specifier: ^0.8.0
+        version: 0.8.0
       '@super-line/store-pglite':
         specifier: ^0.1.0
         version: 0.1.0
+      '@super-line/store-sqlite':
+        specifier: ^0.3.0
+        version: 0.3.0
       '@super-line/transport-websocket':
         specifier: ^0.5.0
         version: 0.5.0
       vitest:
         specifier: ^4.1.2
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@25.9.4)(vite@7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5))
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   packages/shared:
     dependencies:
-      '@super-line/core':
-        specifier: ^0.8.0
-        version: 0.8.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      '@super-line/core':
+        specifier: ^0.9.0
+        version: 0.9.0
       vitest:
         specifier: ^4.1.2
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@25.9.4)(vite@7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5))
@@ -553,8 +595,8 @@ importers:
         specifier: ^0.7.0
         version: 0.7.0
       '@super-line/core':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^0.9.0
+        version: 0.9.0
       '@super-line/store-memory':
         specifier: ^0.8.0
         version: 0.8.0
@@ -2718,16 +2760,8 @@ packages:
     resolution: {integrity: sha512-zdH6y6BRxED0X99TcyLEq+ISnit2gSpkD3dO5xmM85ju+CBIn5eR7ruUG3STaJakUDU4b07PlpmGAfoOpPSg1Q==}
     engines: {node: '>=18'}
 
-  '@super-line/core@0.5.0':
-    resolution: {integrity: sha512-zMe88SVVOFuqDhnustwGsIyn0rnl4oluNV4VLJjkYlOoLY2gGlWkVjk9uQ3D2Br1wHx+L1aiewlH7qrq4meklA==}
-    engines: {node: '>=18'}
-
-  '@super-line/core@0.7.1':
-    resolution: {integrity: sha512-hHZa9L/ObMFFG9ZDxqHMM2oMfKlr6E5s4LkcIj4hXPbA7T2mQ/Kk3vva1bqHs1qgvsYdRaYuoTWU/ijX5zc5Ug==}
-    engines: {node: '>=18'}
-
-  '@super-line/core@0.8.0':
-    resolution: {integrity: sha512-g/lTcG4gAVJx5ic+UEY1Pz9HRpJWEjjoRoVY4RQMPh7KwSQWCjwzzlAWLpqjbPG/P1ivS6AxPq/GDUqGQhy4pw==}
+  '@super-line/core@0.9.0':
+    resolution: {integrity: sha512-5nxf1NNcehPWJp1msztsOOZd3CGZLCW1phwzHAs3Yo3q0zivK5kYTAImk/mzLKBc+pgwtsvuKAldZXUz9U5YJg==}
     engines: {node: '>=18'}
 
   '@super-line/server@0.9.0':
@@ -7949,7 +7983,7 @@ snapshots:
       '@libp2p/interface': 3.2.4
       '@libp2p/tcp': 11.0.22
       '@libp2p/websockets': 10.1.15
-      '@super-line/core': 0.5.0
+      '@super-line/core': 0.9.0
       datastore-fs: 12.0.1
       libp2p: 3.3.4
     transitivePeerDependencies:
@@ -7958,23 +7992,15 @@ snapshots:
 
   '@super-line/client@0.7.0':
     dependencies:
-      '@super-line/core': 0.8.0
+      '@super-line/core': 0.9.0
 
-  '@super-line/core@0.5.0':
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-
-  '@super-line/core@0.7.1':
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-
-  '@super-line/core@0.8.0':
+  '@super-line/core@0.9.0':
     dependencies:
       '@standard-schema/spec': 1.1.0
 
   '@super-line/server@0.9.0(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@super-line/core': 0.8.0
+      '@super-line/core': 0.9.0
     optionalDependencies:
       '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
     transitivePeerDependencies:
@@ -7992,23 +8018,23 @@ snapshots:
 
   '@super-line/store-memory@0.8.0':
     dependencies:
-      '@super-line/core': 0.8.0
+      '@super-line/core': 0.9.0
 
   '@super-line/store-pglite@0.1.0':
     dependencies:
       '@electric-sql/pglite': 0.5.4
       '@electric-sql/pglite-sync': 0.6.5(@electric-sql/pglite@0.5.4)
-      '@super-line/core': 0.8.0
+      '@super-line/core': 0.9.0
       postgres: 3.4.9
 
   '@super-line/store-sqlite@0.3.0':
     dependencies:
-      '@super-line/core': 0.7.1
+      '@super-line/core': 0.9.0
       better-sqlite3: 11.10.0
 
   '@super-line/transport-websocket@0.5.0':
     dependencies:
-      '@super-line/core': 0.5.0
+      '@super-line/core': 0.9.0
       ws: 8.21.0
     transitivePeerDependencies:
       - bufferutil

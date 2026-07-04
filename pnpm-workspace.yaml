@@ -6,6 +6,13 @@ packages:
 allowBuilds:
   better-sqlite3: true
   esbuild: true
+# Published @super-line/server/client/store-*/transport-* carry
+# @super-line/core as a REGULAR dependency (^0.8.0 / ^0.5.0) — without this
+# override pnpm installs multiple core copies and host + library stop sharing
+# one instance (contract identity / SuperLineError instanceof skew). Drop once
+# upstream makes core a true peerDependency.
+overrides:
+  '@super-line/core': ^0.9.0
 minimumReleaseAge: 0  
 minimumReleaseAgeExclude:
   - '@super-line/client@0.4.0'

@@ -2,9 +2,14 @@
 // it rides per-node/thread Stores (configured separately, client + server).
 // The contract carries the control plane (turns, approvals, modes, threads)
 // and the ephemeral signals that aren't state: suspended / approval prompts.
+//
+// Every identifier the harness registers on a super-line server is prefixed
+// (`harness.*` requests/events/stores, `harness:*` rooms) — the composition
+// convention that lets a host app mount `harnessSurface` beside its own
+// surface on ONE server/socket without collisions.
 
 import { z } from 'zod'
-import { defineContract } from '@super-line/core'
+import { defineContract, defineSurface } from '@super-line/core'
 
 export const suspendedSchema = z.object({
   threadId: z.string(),
@@ -44,72 +49,89 @@ export const threadInfoSchema = z.object({
 })
 export type ThreadInfo = z.infer<typeof threadInfoSchema>
 
-export const contract = defineContract({
-  shared: {
-    clientToServer: {
-      join: {
-        input: z.object({ threadId: z.string() }),
-        output: z.object({ ok: z.boolean() }),
-      },
-      sendMessage: {
-        input: z.object({ threadId: z.string(), message: z.string() }),
-        output: z.object({ ok: z.boolean() }),
-      },
-      resumeMessage: {
-        input: z.object({ threadId: z.string(), toolCallId: z.string().optional(), resumeData: z.unknown() }),
-        output: z.object({ ok: z.boolean() }),
-      },
-      abort: {
-        input: z.object({ threadId: z.string() }),
-        output: z.object({ ok: z.boolean() }),
-      },
-      respondToApproval: {
-        input: z.object({
-          threadId: z.string(),
-          toolCallId: z.string().optional(),
-          decision: approvalDecisionSchema,
-          message: z.string().optional(),
-        }),
-        output: z.object({ ok: z.boolean() }),
-      },
-      switchMode: {
-        input: z.object({ threadId: z.string(), modeId: z.string() }),
-        output: z.object({ ok: z.boolean() }),
-      },
-      listModes: {
-        input: z.object({}),
-        output: z.object({ modes: z.array(modeInfoSchema), defaultModeId: z.string().optional() }),
-      },
-      listThreads: {
-        input: z.object({ resourceId: z.string().optional() }),
-        output: z.object({ threads: z.array(threadInfoSchema) }),
-      },
-      createThread: {
-        input: z.object({ threadId: z.string().optional(), resourceId: z.string().optional(), title: z.string().optional() }),
-        output: z.object({ threadId: z.string() }),
-      },
-      renameThread: {
-        input: z.object({ threadId: z.string(), title: z.string() }),
-        output: z.object({ ok: z.boolean() }),
-      },
-      deleteThread: {
-        input: z.object({ threadId: z.string() }),
-        output: z.object({ ok: z.boolean() }),
-      },
+// Store namespaces + room names, exported so server, clients, and host apps
+// share one spelling (a typo'd store name is a silently dead handle).
+export const HARNESS_NODE_STORE = 'harness.node'
+export const HARNESS_THREAD_STORE = 'harness.thread'
+export const harnessThreadRoom = (threadId: string): string => `harness:thread:${threadId}`
+export const harnessResourceRoom = (resourceId: string): string => `harness:resource:${resourceId}`
+
+// The composable contract fragment. A host app merges it into its SHARED block
+// (`shared: mergeSurfaces(harnessSurface, ownShared)`) and mounts the handlers
+// with @super-harness/server's mountHarness(); the standalone serve() mounts
+// the SAME fragment — one wire ABI either way. It must ride `shared`, not a
+// role: super-line rooms are mixed-role, so `room().broadcast` only carries
+// shared events — and every harness signal is a room broadcast.
+export const harnessSurface = defineSurface({
+  clientToServer: {
+    'harness.join': {
+      input: z.object({ threadId: z.string() }),
+      output: z.object({ ok: z.boolean() }),
     },
-    serverToClient: {
-      suspended: { payload: suspendedSchema },
-      approvalRequired: { payload: approvalRequiredSchema },
-      modeChanged: { payload: z.object({ threadId: z.string(), modeId: z.string(), previousModeId: z.string() }) },
-      followUpQueued: { payload: z.object({ threadId: z.string(), count: z.number() }) },
-      // Thread-LIST signals (the sidebar), broadcast to the resource room so all
-      // of a resource's tabs stay in sync — not the per-thread room (a tab
-      // viewing thread A must still learn thread B was created/renamed/deleted).
-      threadCreated: { payload: threadInfoSchema },
-      threadRenamed: { payload: z.object({ threadId: z.string(), title: z.string() }) },
-      threadDeleted: { payload: z.object({ threadId: z.string() }) },
+    'harness.sendMessage': {
+      input: z.object({ threadId: z.string(), message: z.string() }),
+      output: z.object({ ok: z.boolean() }),
+    },
+    'harness.resumeMessage': {
+      input: z.object({ threadId: z.string(), toolCallId: z.string().optional(), resumeData: z.unknown() }),
+      output: z.object({ ok: z.boolean() }),
+    },
+    'harness.abort': {
+      input: z.object({ threadId: z.string() }),
+      output: z.object({ ok: z.boolean() }),
+    },
+    'harness.respondToApproval': {
+      input: z.object({
+        threadId: z.string(),
+        toolCallId: z.string().optional(),
+        decision: approvalDecisionSchema,
+        message: z.string().optional(),
+      }),
+      output: z.object({ ok: z.boolean() }),
+    },
+    'harness.switchMode': {
+      input: z.object({ threadId: z.string(), modeId: z.string() }),
+      output: z.object({ ok: z.boolean() }),
+    },
+    'harness.listModes': {
+      input: z.object({}),
+      output: z.object({ modes: z.array(modeInfoSchema), defaultModeId: z.string().optional() }),
+    },
+    'harness.listThreads': {
+      input: z.object({ resourceId: z.string().optional() }),
+      output: z.object({ threads: z.array(threadInfoSchema) }),
+    },
+    'harness.createThread': {
+      input: z.object({ threadId: z.string().optional(), resourceId: z.string().optional(), title: z.string().optional() }),
+      output: z.object({ threadId: z.string() }),
+    },
+    'harness.renameThread': {
+      input: z.object({ threadId: z.string(), title: z.string() }),
+      output: z.object({ ok: z.boolean() }),
+    },
+    'harness.deleteThread': {
+      input: z.object({ threadId: z.string() }),
+      output: z.object({ ok: z.boolean() }),
     },
   },
+  serverToClient: {
+    'harness.suspended': { payload: suspendedSchema },
+    'harness.approvalRequired': { payload: approvalRequiredSchema },
+    'harness.modeChanged': { payload: z.object({ threadId: z.string(), modeId: z.string(), previousModeId: z.string() }) },
+    'harness.followUpQueued': { payload: z.object({ threadId: z.string(), count: z.number() }) },
+    // Thread-LIST signals (the sidebar), broadcast to the resource room so all
+    // of a resource's tabs stay in sync — not the per-thread room (a tab
+    // viewing thread A must still learn thread B was created/renamed/deleted).
+    'harness.threadCreated': { payload: threadInfoSchema },
+    'harness.threadRenamed': { payload: z.object({ threadId: z.string(), title: z.string() }) },
+    'harness.threadDeleted': { payload: z.object({ threadId: z.string() }) },
+  },
+})
+
+// The standalone contract serve() runs — the fragment mounted into `shared`
+// with a single empty role, exactly as a host would mount it.
+export const contract = defineContract({
+  shared: harnessSurface,
   roles: {
     user: {},
   },

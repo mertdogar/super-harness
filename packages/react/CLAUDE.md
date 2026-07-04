@@ -1,8 +1,23 @@
 # @super-harness/react
 
 `pnpm -F @super-harness/react test` — vitest, no network: tests drive the
-state machine through the `wire` config seam (a structural fake super-line
-client + fake Store handles).
+state machine through the `client` config option (a structural fake
+super-line client + fake Store handles).
+
+- `HarnessClient` runs in two modes, decided by the config: `url` (owned —
+  connect() builds a client, close() closes it) or `client` (composition).
+  A `client` **instance** is borrowed: close() detaches the tracked `on()`
+  unsubscribes but never closes the host's socket. A `client` **factory** is
+  owned like url (fresh per connect, closed on close) — it exists to emulate
+  production ownership in tests (the StrictMode test depends on it).
+  `HarnessWire` is the structural surface a borrowed client must satisfy; its
+  `on` is concrete overloads on purpose — a generic breaks assignability from
+  real merged-contract clients.
+- `harnessClientStores()` gives hosts the `harness.node`/`harness.thread`
+  client replicas to spread into their own client's `stores`.
+- The reconnect poll stays in borrowed mode: rooms are per-connection and
+  only this layer knows its rooms; the poll never touches the socket, so it
+  cannot fight the host's reconnect logic.
 
 - `harness-client.ts` is the engine; `react.ts` is a thin
   context/`useSyncExternalStore` binding. Keep it that way — new behavior goes

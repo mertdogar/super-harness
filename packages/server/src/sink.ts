@@ -26,7 +26,9 @@ const DEFAULT_FLUSH_MS = 150
 // unaffected — no client shares this origin). Needs @super-line/server >= 0.9.0.
 const ORIGIN = 'harness'
 
-// `nodeStore`/`threadStore` are `srv.store('node')` / `srv.store('thread')`.
+// `nodeStore`/`threadStore` are `srv.store(HARNESS_NODE_STORE)` /
+// `srv.store(HARNESS_THREAD_STORE)` (the `harness.node`/`harness.thread`
+// namespaces from @super-harness/shared).
 // grantTo() = principals allowed to READ, evaluated at each Resource creation
 // (so users who joined after the sink was built still get onto NEW Resources;
 // already-created ones are granted by the join handler). Stores are

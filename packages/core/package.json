@@ -50,8 +50,7 @@
   },
   "dependencies": {
     "@super-harness/shared": "workspace:*",
-    "@super-line/core": "^0.8.0",
-    "nanoid": "^5.1.7",
+        "nanoid": "^5.1.7",
     "zod": "^4.4.3"
   },
   "peerDependencies": {

@@ -1,0 +1,25 @@
+{
+  "name": "@super-harness/composed-host",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Composition example: a host super-line server mounting the harness beside its own surface, with one shared client driving both.",
+  "type": "module",
+  "scripts": {
+    "start": "bun --env-file=../../.env src/server.ts",
+    "client": "bun --env-file=../../.env src/client.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.3",
+    "@mastra/core": "1.49.0-alpha.2",
+    "@super-harness/core": "workspace:*",
+    "@super-harness/react": "workspace:*",
+    "@super-harness/server": "workspace:*",
+    "@super-harness/shared": "workspace:*",
+    "@super-line/client": "^0.7.0",
+    "@super-line/core": "^0.9.0",
+    "@super-line/server": "^0.9.0",
+    "@super-line/store-memory": "^0.8.0",
+    "@super-line/transport-websocket": "^0.5.0",
+    "zod": "^4.4.3"
+  }
+}

@@ -10,6 +10,9 @@ coverage
 *.db-wal
 *.db-shm
 
+# stray docker compose logs (e.g. `docker compose up > docker.logs`)
+*.logs
+
 # docs site: vitepress build artifacts + generated API reference
 docs/.vitepress/cache
 docs/.vitepress/dist

@@ -1,6 +1,11 @@
 export {
   contract,
   type Contract,
+  harnessSurface,
+  HARNESS_NODE_STORE,
+  HARNESS_THREAD_STORE,
+  harnessThreadRoom,
+  harnessResourceRoom,
   suspendedSchema,
   type Suspended,
   approvalRequiredSchema,

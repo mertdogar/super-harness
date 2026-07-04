@@ -1,14 +1,39 @@
 # @super-harness/server
 
 `pnpm -F @super-harness/server test` — includes `wire.test.ts`, a real
-WebSocket e2e through `serve()` with a fake-runner Harness.
+WebSocket e2e through `serve()` with a fake-runner Harness, and
+`composition.test.ts`, the same over a HOST server mounting the harness
+(deliberately cast-free — it is the host-DX litmus test).
+
+## Composition
+
+`serve()` is a thin standalone host over two composable exports:
+`await harnessStores(storage)` (spread into the host's `stores` config BEFORE
+`createSuperLineServer`) and `mountHarness(srv, harness)` → `{ handlers,
+close }` (handlers spread into the host's `implement()` **shared** block; the
+mount attaches the bus → Projector → sink pipeline so requests and tree can't
+be wired separately). Host obligations beyond that: merge `harnessSurface`
+into the contract's `shared` block, ctx extends `HarnessCtx`, and `identify`
+returns `ctx.userId` — see the gotchas below and `examples/composed-host`.
 
 ## Gotchas
 
-- **One table per Store namespace** (`table: ns` in `sqliteStoreServer`) — a
-  shared table lets a node id and a thread id collide and clobber each other.
-  The shared-db backends (`libsql`/`postgres`) prefix `superline_` so they sit
-  safely beside Mastra's `mastra_*` tables in the same file/database.
+- **`identify` is load-bearing, not cosmetic**: store ACL grants key on
+  `ctx.userId`, and super-line's principal is `identify(conn) ?? conn.id`
+  (random). A host that skips `identify` gets a working request surface and a
+  silently empty tree — every store read denied. (`composition.test.ts`
+  exists because of this.)
+- **Resource-room membership is joined lazily** in the `harness.join` /
+  `harness.listThreads` / `harness.createThread` handlers — there is no
+  onConnection hook for a host to wire (rooms auto-remove on disconnect).
+
+- **One table per Store namespace** — a shared table lets a node id and a
+  thread id collide and clobber each other. Table names flatten the namespace
+  dot (`harness.node` → `harness_node`); the shared-db backends
+  (`libsql`/`postgres`) prefix `superline_` (`superline_harness_node`) so they
+  sit safely beside Mastra's `mastra_*` tables in the same file/database.
+  (Pre-composition tables — `node`, `superline_thread`, … — are orphaned, not
+  migrated.)
 - **Shared-db store backends** (`stores.ts`, `libsqlStoreServer` /
   `pgStoreServer`): async LWW ports of `sqliteStoreServer` over a connection the
   app already owns. Because the drivers are async but `ServerReplica` is sync,

@@ -141,8 +141,8 @@ describe('subscribeTree', () => {
     const stop = subscribeTree(client, 't1', (tree) => (latest = tree))
 
     const thread: ThreadDoc = { turns: ['r'], nodes: { r: { parentNodeId: null, depth: 0, childOrder: [] } } }
-    push('thread', 't1', thread)
-    push('node', 'r', node({ nodeId: 'r', parentNodeId: null, depth: 0, text: 'hi' }))
+    push('harness.thread', 't1', thread)
+    push('harness.node', 'r', node({ nodeId: 'r', parentNodeId: null, depth: 0, text: 'hi' }))
 
     expect(latest.turns).toEqual(['r'])
     expect(latest.nodes.r?.text).toBe('hi')

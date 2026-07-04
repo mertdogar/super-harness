@@ -1,8 +1,11 @@
 export {
   createHarnessClient,
+  harnessClientStores,
   HarnessClient,
   type HarnessClientConfig,
   type HarnessState,
+  type HarnessWire,
+  type HarnessWireEvents,
   type PendingApproval,
   type PendingAsk,
 } from "./harness-client"
