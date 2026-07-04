@@ -24,4 +24,13 @@ describe('tree.apply', () => {
     apply(tree, { ...env, type: 'tool_start', toolCallId: 't1', toolName: 'weather', args: { city: 'LA' } })
     expect(tree.nodes.r.tools.t1.args).toEqual({ city: 'LA' })
   })
+
+  it('patches node usage from an interim usage event (mid-turn tick), before node_end', () => {
+    const tree = initialTree()
+    const env = { nodeId: 'r', parentNodeId: null, depth: 0 }
+    apply(tree, { ...env, type: 'node_start' })
+    apply(tree, { ...env, type: 'usage', usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120 } })
+    expect(tree.nodes.r.status).toBe('running') // ticked while still running
+    expect(tree.nodes.r.usage).toEqual({ inputTokens: 100, outputTokens: 20, totalTokens: 120 })
+  })
 })

@@ -34,6 +34,15 @@ describe('chunk-adapter', () => {
     expect(a.usage).toEqual({ inputTokens: 100, outputTokens: 20, totalTokens: 120, reasoningTokens: 5, cachedInputTokens: 80 })
   })
 
+  it('accumulates step-finish deltas into a running usage event so the count ticks mid-turn', () => {
+    const a = createChunkAdapter(new Set())
+    const e1 = a.map({ type: 'step-finish', payload: { output: { usage: { inputTokens: 100, outputTokens: 20, cachedInputTokens: 80 } } } })
+    expect(e1).toEqual([{ type: 'usage', usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120, reasoningTokens: 0, cachedInputTokens: 80 } }])
+    // second step accumulates onto the first (running total, not per-step delta)
+    const e2 = a.map({ type: 'step-finish', payload: { output: { usage: { inputTokens: 50, outputTokens: 10 } } } })
+    expect(e2).toEqual([{ type: 'usage', usage: { inputTokens: 150, outputTokens: 30, totalTokens: 180, reasoningTokens: 0, cachedInputTokens: 80 } }])
+  })
+
   it('maps tool-error to a settled tool_end so the call never sticks at input-available', () => {
     const a = createChunkAdapter(new Set())
     expect(a.map({ type: 'tool-error', payload: { toolCallId: 'c9', toolName: 'weather', error: new Error('boom') } })).toEqual([

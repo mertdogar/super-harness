@@ -69,7 +69,17 @@ export function createChunkAdapter(suppressToolNames: ReadonlySet<string>): Chun
           resumeSchema: p.resumeSchema,
         }
         return []
+      case 'step-finish': {
+        // Per-step usage DELTA (verified: the run-final `finish` equals the sum of
+        // these). Accumulate a running total and tick the node so the count climbs
+        // mid-turn instead of only at node_end.
+        const u = p.output?.usage
+        if (!u) return []
+        self.usage = addUsage(self.usage, u)
+        return [{ type: 'usage', usage: self.usage }]
+      }
       case 'finish': {
+        // Authoritative cumulative for node_end (== the accumulated step deltas).
         const u = p.output?.usage
         if (u) {
           self.usage = {
@@ -90,6 +100,20 @@ export function createChunkAdapter(suppressToolNames: ReadonlySet<string>): Chun
   }
 
   return self
+}
+
+// Accumulate a per-step usage delta into a running total. totalTokens is
+// recomputed from parts (matching shared/sumUsage), cached/reasoning summed.
+function addUsage(a: TokenUsage | undefined, b: Record<string, any>): TokenUsage {
+  const inputTokens = (a?.inputTokens ?? 0) + (b.inputTokens ?? 0)
+  const outputTokens = (a?.outputTokens ?? 0) + (b.outputTokens ?? 0)
+  return {
+    inputTokens,
+    outputTokens,
+    totalTokens: inputTokens + outputTokens,
+    reasoningTokens: (a?.reasoningTokens ?? 0) + (b.reasoningTokens ?? 0),
+    cachedInputTokens: (a?.cachedInputTokens ?? 0) + (b.cachedInputTokens ?? 0),
+  }
 }
 
 function errorMessage(p: Record<string, any>): string {

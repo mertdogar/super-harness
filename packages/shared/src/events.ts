@@ -38,6 +38,9 @@ export const harnessEventSchema = z.discriminatedUnion('type', [
     usage: tokenUsageSchema.optional(),
     durationMs: z.number().optional(),
   }),
+  // Interim per-step running total (folded from Mastra `step-finish` chunks) so a
+  // node's token usage ticks up mid-turn instead of only landing at node_end.
+  z.object({ ...envelope, type: z.literal('usage'), usage: tokenUsageSchema }),
   z.object({ ...envelope, type: z.literal('reasoning_delta'), text: z.string() }),
   z.object({ ...envelope, type: z.literal('text_delta'), text: z.string() }),
   // *_done are the coalesced blocks the headless emits from consecutive deltas

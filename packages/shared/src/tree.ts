@@ -74,6 +74,9 @@ export function apply(tree: HarnessTree, event: HarnessEvent): string[] {
         durationMs: event.durationMs,
       })
       break
+    case 'usage':
+      patch(tree, id, { usage: event.usage })
+      break
     case 'reasoning_delta':
       patch(tree, id, { reasoning: tree.nodes[id].reasoning + event.text })
       break
