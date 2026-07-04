@@ -316,6 +316,125 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
 
+  examples/plan-board/client:
+    dependencies:
+      '@radix-ui/react-use-controllable-state':
+        specifier: ^1.2.3
+        version: 1.2.3(@types/react@19.2.17)(react@19.2.7)
+      '@super-harness/react':
+        specifier: workspace:*
+        version: link:../../../packages/react
+      '@super-harness/shared':
+        specifier: workspace:*
+        version: link:../../../packages/shared
+      ai:
+        specifier: ^7.0.11
+        version: 7.0.11(zod@4.4.3)
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      cmdk:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      lucide-react:
+        specifier: ^1.23.0
+        version: 1.23.0(react@19.2.7)
+      motion:
+        specifier: ^12.42.2
+        version: 12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      nanoid:
+        specifier: ^5.1.7
+        version: 5.1.16
+      radix-ui:
+        specifier: ^1.6.1
+        version: 1.6.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.7(react@19.2.7)
+      shiki:
+        specifier: ^4.3.0
+        version: 4.3.0
+      streamdown:
+        specifier: ^2.5.0
+        version: 2.5.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      tailwind-merge:
+        specifier: ^3.3.1
+        version: 3.6.0
+      tw-animate-css:
+        specifier: ^1.4.0
+        version: 1.4.0
+      use-stick-to-bottom:
+        specifier: ^1.1.6
+        version: 1.1.6(react@19.2.7)
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: ^4.1.14
+        version: 4.3.2(vite@7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5))
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.9.4
+      '@types/react':
+        specifier: ^19.2.0
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.0
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: ^5.0.4
+        version: 5.2.0(vite@7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5))
+      tailwindcss:
+        specifier: ^4.1.14
+        version: 4.3.2
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+      vite:
+        specifier: ^7.1.7
+        version: 7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5)
+
+  examples/plan-board/server:
+    dependencies:
+      '@ai-sdk/gateway':
+        specifier: ^4.0.3
+        version: 4.0.8(zod@4.4.3)
+      '@mastra/core':
+        specifier: 1.49.0-alpha.2
+        version: 1.49.0-alpha.2(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+      '@mastra/libsql':
+        specifier: ^1.14.3
+        version: 1.14.3(@mastra/core@1.49.0-alpha.2(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))
+      '@mastra/memory':
+        specifier: ^1.22.0
+        version: 1.22.0(@mastra/core@1.49.0-alpha.2(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))
+      '@super-harness/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@super-harness/server':
+        specifier: workspace:*
+        version: link:../../../packages/server
+      '@super-line/transport-websocket':
+        specifier: ^0.5.0
+        version: 0.5.0
+      tsx:
+        specifier: ^4.21.0
+        version: 4.22.5
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.9.4
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+
   examples/web/client:
     dependencies:
       '@radix-ui/react-use-controllable-state':

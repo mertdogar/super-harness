@@ -1,0 +1,27 @@
+{
+  "name": "@super-harness/plan-board-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Plan-board example backend: a scripted planner showcasing todos + ask_user + delegation + a gated tool.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../../.env server.ts",
+    "start": "tsx --env-file=../../../.env server.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.3",
+    "@mastra/core": "1.49.0-alpha.2",
+    "@mastra/libsql": "^1.14.3",
+    "@mastra/memory": "^1.22.0",
+    "@super-harness/core": "workspace:*",
+    "@super-harness/server": "workspace:*",
+    "@super-line/transport-websocket": "^0.5.0",
+    "tsx": "^4.21.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "~5.8.3"
+  }
+}

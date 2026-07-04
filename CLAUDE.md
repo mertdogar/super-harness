@@ -38,6 +38,10 @@ Run the demo: `pnpm -F @super-harness/dev-server start` (needs
   server mounting the harness beside its own surface, one shared client.
 - `examples/web` — fullstack showcase: Hono backend (`web/server`) + Vite/React/
   shadcn/ai-elements client (`web/client`). See its CLAUDE.md.
+- `examples/plan-board` — todo/task showcase: a scripted planner
+  (`plan-board/server`) + a plan-first client (`plan-board/client`) on web's
+  shadcn/ai-elements stack, rendering the live plan, delegation, ask_user, and an
+  approval gate. See its CLAUDE.md.
 - `examples/mastra-playground` — standalone Mastra scratchpad, NOT wired to
   the harness.
 

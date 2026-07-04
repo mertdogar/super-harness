@@ -39,6 +39,7 @@ Super Harness makes three guarantees the design is built around:
 | [`@super-harness/tui`](packages/tui) | The terminal client — OpenTUI cockpit + headless shell. Runs on Bun. |
 | [`examples/dev-server`](examples/dev-server) | A runnable server: a supervisor delegating to a `worker` subagent with a live weather tool. What the quickstart below runs. |
 | [`examples/web`](examples/web) | Fullstack showcase — a Hono harness backend and a Vite/React/shadcn/ai-elements client (live tree, approvals, modes, cross-tab thread list). |
+| [`examples/plan-board`](examples/plan-board) | Todo/task showcase — a scripted planner and a plan-first client (web's shadcn/ai-elements stack) rendering the live plan checklist, delegation, ask_user, and an approval gate. |
 
 ## Quickstart
 
@@ -376,6 +377,7 @@ packages/
 examples/
   dev-server/        runnable supervisor + worker demo
   web/               fullstack Hono backend + Vite/React/shadcn client
+  plan-board/        todo/task showcase (scripted planner + shadcn/ai-elements client)
   mastra-playground/ standalone Mastra scratchpad (not wired to the harness)
 ```
 
