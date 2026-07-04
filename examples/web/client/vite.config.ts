@@ -10,4 +10,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  // Bind all interfaces + allow the tailnet MagicDNS host so a phone on the
+  // tailnet can reach this dev server by hostname (Vite blocks unknown domains).
+  server: { host: true, allowedHosts: [".ts.net"] },
 });
