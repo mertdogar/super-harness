@@ -20,50 +20,19 @@ import { LibSQLStore } from "@mastra/libsql"
 import { PostgresStore } from "@mastra/pg"
 import { createClient } from "@libsql/client"
 import { gateway } from "ai"
-import { createLibp2p } from 'libp2p'
-import { tcp } from '@libp2p/tcp'
-import { noise } from '@chainsafe/libp2p-noise'
-import { yamux } from '@chainsafe/libp2p-yamux'
-import { identify } from '@libp2p/identify'
-import { gossipsub } from '@libp2p/gossipsub'
-import { mdns } from '@libp2p/mdns'
 import { z } from "zod"
 import { webSocketServerTransport } from "@super-line/transport-websocket"
 import { createHarness } from "@super-harness/core"
 import { serve, type ServeConfig } from "@super-harness/server"
-import { createLibp2pAdapter, type PubSubLibp2p } from '@super-line/adapter-libp2p'
+import { createLibp2pAdapter } from '@super-line/adapter-libp2p'
 
 const PORT = Number(process.env.SUPER_HARNESS_PORT ?? 4111)
-const NODE = process.env.NODE_NAME ?? `node-${PORT}`
 const MODEL = process.env.CHAT_MODEL ?? "anthropic/claude-haiku-4.5"
 if (!process.env.AI_GATEWAY_API_KEY) {
   console.error("AI_GATEWAY_API_KEY is not set (put it in the root .env)")
   process.exit(2)
 }
 
-
-
-// The STORE needs no adapter — Electric is its CRDT bus. This broker-less libp2p mesh is a SEPARATE plane
-// carrying presence + inspector so the Control Center sees the whole cluster (the store never touches it).
-// No extra container, and NO cluster-size knowledge: every node runs identical code and finds its peers over
-// mDNS on the shared network — no node list, no bootstrap, no peer IDs to pre-compute.
-const node = (await createLibp2p({
-  addresses: { listen: ['/ip4/0.0.0.0/tcp/0'] },
-  transports: [tcp()],
-  connectionEncrypters: [noise()],
-  streamMuxers: [yamux()],
-  peerDiscovery: [mdns()],
-  services: {
-    identify: identify(),
-    pubsub: gossipsub({ allowPublishToZeroTopicPeers: true }),
-  },
-})) as unknown as PubSubLibp2p
-// mDNS only emits discovery — it does NOT auto-dial (unlike bootstrap). Dial discovered peers so the gossipsub
-// mesh (and presence/inspector fan-out) actually forms. Re-dials to a live peer are no-ops.
-node.addEventListener('peer:discovery', (e) => {
-  console.log(`[${NODE}] mDNS discovered peer ${e.detail.id.toString().slice(-8)}`)
-  void node.dial(e.detail.multiaddrs).catch(() => {})
-})
 
 
 const weatherTool = createTool({
@@ -223,5 +192,9 @@ await serve(harness, {
   storage: treeStorage, // durable tree in the SAME database as Mastra's memory (see STORAGE above)
   transports: [webSocketServerTransport({ server: httpServer, path: "/super-line", inspector: INSPECTOR })],
   inspector: INSPECTOR,
-  adapter: await createLibp2pAdapter({ node }), // reuse the BYO node for the presence/inspector plane
+  // The STORE needs no adapter — Electric is its CRDT bus. This broker-less libp2p mesh is a SEPARATE
+  // plane carrying presence + inspector so the Control Center sees the whole cluster (the store never
+  // touches it). No node list, no bootstrap, no peer IDs to pre-compute — every node finds its peers
+  // over mDNS on the shared network and the adapter dials them itself.
+  adapter: await createLibp2pAdapter({ discovery: 'mdns' }),
 })

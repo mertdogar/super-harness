@@ -403,27 +403,9 @@ importers:
       '@ai-sdk/gateway':
         specifier: ^4.0.3
         version: 4.0.8(zod@4.4.3)
-      '@chainsafe/libp2p-noise':
-        specifier: ^17.0.0
-        version: 17.0.0
-      '@chainsafe/libp2p-yamux':
-        specifier: ^8.0.1
-        version: 8.0.1
       '@hono/node-server':
         specifier: ^1.19.12
         version: 1.19.14(hono@4.12.27)
-      '@libp2p/gossipsub':
-        specifier: ^16.0.3
-        version: 16.0.3
-      '@libp2p/identify':
-        specifier: ^4.1.8
-        version: 4.1.8
-      '@libp2p/mdns':
-        specifier: ^12.0.25
-        version: 12.0.25
-      '@libp2p/tcp':
-        specifier: ^11.0.22
-        version: 11.0.22
       '@libsql/client':
         specifier: ^0.17.4
         version: 0.17.4
@@ -446,8 +428,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/server
       '@super-line/adapter-libp2p':
-        specifier: ^0.5.0
-        version: 0.5.0
+        specifier: ^0.6.0
+        version: 0.6.0
       '@super-line/store-pglite':
         specifier: ^0.1.0
         version: 0.1.0
@@ -460,9 +442,6 @@ importers:
       hono:
         specifier: ^4.12.10
         version: 4.12.27
-      libp2p:
-        specifier: ^3.3.4
-        version: 3.3.4
       tsx:
         specifier: ^4.21.0
         version: 4.22.5
@@ -1323,11 +1302,17 @@ packages:
   '@libp2p/bootstrap@12.0.25':
     resolution: {integrity: sha512-Q2CiaI9Zq2FUCmC7jt3OwgREEff29VB5+A4aw3I7z9qNwBUF7M53Gg77RL3cTvh5qhd9KngK7yUY1HwvxD6Ddw==}
 
+  '@libp2p/circuit-relay-v2@4.2.7':
+    resolution: {integrity: sha512-aV5u1p+4O0J/qW1Rc1toHvU/Omqx1pnAICWRHITOTrQcDopUnCryyW8FYW37PSS/+P0mPfnc6AncAnFr5emd4A==}
+
   '@libp2p/config@1.1.33':
     resolution: {integrity: sha512-Kg+Gkbfe/w2MaRipra9T14XlpiFdg71xIFUSu9J50YZ7Fc/nCLLgsQWqErjI864h6yl1YpBtRBfiC/F4DHP0eA==}
 
   '@libp2p/crypto@5.1.20':
     resolution: {integrity: sha512-sPz+CvDWPDb+O8xYsueXDdrV6Kf7PciNEYvcCjOR/VqM0iHwzC7aaM0xPiQqrUDj1nggswbY/E/vNZYJ4aCQaA==}
+
+  '@libp2p/dcutr@3.0.22':
+    resolution: {integrity: sha512-n9u/CwzyUjXVezZSplpQY37T1xZq7cVz1UV1hDRo6dk5PeOK+voj0FRktYefaTvjwvQFI2ZFDnv16Qr8xUtOfw==}
 
   '@libp2p/gossipsub@16.0.3':
     resolution: {integrity: sha512-wsxW6mXWdzEAqdlEd+vrBaMTLunv16lV1Qd1wvw+p0ki98ny9OSlgI3Bagdi0a37QHgzI+rODgTsvYFyb3Cg5A==}
@@ -1365,6 +1350,9 @@ packages:
 
   '@libp2p/peer-store@12.0.22':
     resolution: {integrity: sha512-LoBq4uZp5TvPVcU1DtEsuBEC8Fcq1sprgY+KBoIoecL2bsUpCaQsbPIqbByLR6hCfDgWPv5ChFvIoZwn3YCyDw==}
+
+  '@libp2p/pubsub-peer-discovery@12.0.0':
+    resolution: {integrity: sha512-72sZwTDBH/iowRumycPLjSlaUd3cwQcjSN2xUagdzNtMt9ryWt7dL4fDGM+VsktSdYmzzOHhL9ZftNfUk7XG7A==}
 
   '@libp2p/tcp@11.0.22':
     resolution: {integrity: sha512-q1jeWt0XMk6uZQrNOE9YBPciQPgGdNEroD3Wf/TOf2DvzRHpiG6nyMxS3HFdrlCOnuyxlvpMl4jfCh+YGjdxQw==}
@@ -2752,8 +2740,8 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
-  '@super-line/adapter-libp2p@0.5.0':
-    resolution: {integrity: sha512-oc+u3JFfKk8QE7YT9zRl8SDzxAQLKeXO0CvdrFLbY3zi5Uc+vMKJFTHmphrsjnS9ejw1Vhxl6/tBteDZ6gimIg==}
+  '@super-line/adapter-libp2p@0.6.0':
+    resolution: {integrity: sha512-jXxCRX482+DyoD3nTxkLl/LwhIRXvv0qpj6OfnHm+LPrKyESap4Bv6byxjDhxSDcoP7aJ+YnCWVlQzJywGMrCQ==}
     engines: {node: '>=18'}
 
   '@super-line/client@0.7.0':
@@ -5110,6 +5098,9 @@ packages:
     resolution: {integrity: sha512-qYg9KP24dD5qka9J47d0aVky0N+b4fTU89LN9iDnjB5waksiC49rvMB0PrUJQGoTmH50XPiqOvAjDfaijGxYZw==}
     engines: {node: '>=8'}
 
+  retimeable-signal@1.0.1:
+    resolution: {integrity: sha512-Cy26CYfbWnYu8HMoJeDhaMpW/EYFIbne3vMf6G9RSrOyWYXbPehja/BEdzpqmM84uy2bfBD7NPZhoQ4GZEtgvg==}
+
   reusify@1.1.0:
     resolution: {integrity: sha512-g6QUff04oZpHs0eG5p83rFLhHeV00ug/Yf9nZM6fLeUrPguBTkTQOdpAWWspMh55TZfVQDPaN3NQJfbVRAxdIw==}
     engines: {iojs: '>=1.0.0', node: '>=0.10.0'}
@@ -6460,6 +6451,27 @@ snapshots:
       '@multiformats/multiaddr-matcher': 3.0.2
       main-event: 1.0.4
 
+  '@libp2p/circuit-relay-v2@4.2.7':
+    dependencies:
+      '@libp2p/crypto': 5.1.20
+      '@libp2p/interface': 3.2.4
+      '@libp2p/interface-internal': 3.1.7
+      '@libp2p/peer-collections': 7.0.22
+      '@libp2p/peer-id': 6.0.11
+      '@libp2p/peer-record': 9.0.12
+      '@libp2p/utils': 7.2.3
+      '@multiformats/multiaddr': 13.0.3
+      '@multiformats/multiaddr-matcher': 3.0.2
+      any-signal: 4.2.0
+      main-event: 1.0.4
+      multiformats: 14.0.4
+      nanoid: 5.1.16
+      progress-events: 1.1.0
+      protons-runtime: 7.0.0
+      retimeable-signal: 1.0.1
+      uint8arraylist: 3.0.2
+      uint8arrays: 6.1.1
+
   '@libp2p/config@1.1.33':
     dependencies:
       '@libp2p/crypto': 5.1.20
@@ -6477,6 +6489,17 @@ snapshots:
       protons-runtime: 7.0.0
       uint8arraylist: 3.0.2
       uint8arrays: 6.1.1
+
+  '@libp2p/dcutr@3.0.22':
+    dependencies:
+      '@libp2p/interface': 3.2.4
+      '@libp2p/interface-internal': 3.1.7
+      '@libp2p/utils': 7.2.3
+      '@multiformats/multiaddr': 13.0.3
+      '@multiformats/multiaddr-matcher': 3.0.2
+      delay: 7.0.0
+      protons-runtime: 7.0.0
+      uint8arraylist: 3.0.2
 
   '@libp2p/gossipsub@16.0.3':
     dependencies:
@@ -6609,6 +6632,17 @@ snapshots:
       protons-runtime: 7.0.0
       uint8arraylist: 3.0.2
       uint8arrays: 6.1.1
+
+  '@libp2p/pubsub-peer-discovery@12.0.0':
+    dependencies:
+      '@libp2p/crypto': 5.1.20
+      '@libp2p/interface': 3.2.4
+      '@libp2p/interface-internal': 3.1.7
+      '@libp2p/peer-id': 6.0.11
+      '@multiformats/multiaddr': 13.0.3
+      protons-runtime: 5.6.0
+      uint8arraylist: 2.4.9
+      uint8arrays: 5.1.1
 
   '@libp2p/tcp@11.0.22':
     dependencies:
@@ -7972,17 +8006,22 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@super-line/adapter-libp2p@0.5.0':
+  '@super-line/adapter-libp2p@0.6.0':
     dependencies:
       '@chainsafe/libp2p-noise': 17.0.0
       '@chainsafe/libp2p-yamux': 8.0.1
       '@libp2p/bootstrap': 12.0.25
+      '@libp2p/circuit-relay-v2': 4.2.7
       '@libp2p/config': 1.1.33
+      '@libp2p/dcutr': 3.0.22
       '@libp2p/gossipsub': 16.0.3
       '@libp2p/identify': 4.1.8
       '@libp2p/interface': 3.2.4
+      '@libp2p/mdns': 12.0.25
+      '@libp2p/pubsub-peer-discovery': 12.0.0
       '@libp2p/tcp': 11.0.22
       '@libp2p/websockets': 10.1.15
+      '@multiformats/multiaddr': 13.0.3
       '@super-line/core': 0.9.0
       datastore-fs: 12.0.1
       libp2p: 3.3.4
@@ -10791,6 +10830,8 @@ snapshots:
   require-from-string@2.0.2: {}
 
   resolve-from@5.0.0: {}
+
+  retimeable-signal@1.0.1: {}
 
   reusify@1.1.0: {}
 
