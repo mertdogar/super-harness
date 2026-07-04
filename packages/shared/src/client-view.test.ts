@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { diffTree, subscribeTree, emptyTree, type ClientTree, type StoreClient } from './client-view'
+import { diffTree, subscribeTree, emptyTree, sumUsage, type ClientTree, type StoreClient } from './client-view'
 import type { NodeState, ThreadDoc, ToolState } from './tree'
 
 function node(partial: Partial<NodeState> & { nodeId: string; parentNodeId: string | null; depth: number }): NodeState {
@@ -107,6 +107,32 @@ describe('diffTree', () => {
   })
 })
 
+describe('sumUsage', () => {
+  it('sums per-node usage, recomputes total, keeps cached/reasoning as sub-sums, treats missing as 0', () => {
+    const nodes: NodeState[] = [
+      node({
+        nodeId: 'r',
+        parentNodeId: null,
+        depth: 0,
+        usage: { inputTokens: 100, outputTokens: 20, cachedInputTokens: 80, reasoningTokens: 5, totalTokens: 999 },
+      }),
+      node({ nodeId: 'c', parentNodeId: 'r', depth: 1, usage: { inputTokens: 50, outputTokens: 10 } }), // no cached/reasoning
+      node({ nodeId: 'x', parentNodeId: 'r', depth: 1 }), // no usage at all
+    ]
+    expect(sumUsage(nodes)).toEqual({
+      inputTokens: 150,
+      outputTokens: 30,
+      totalTokens: 180, // recomputed from parts, NOT the reported 999
+      cachedInputTokens: 80,
+      reasoningTokens: 5,
+    })
+  })
+
+  it('returns zeros for an empty set', () => {
+    expect(sumUsage([])).toEqual({ inputTokens: 0, outputTokens: 0, totalTokens: 0, cachedInputTokens: 0, reasoningTokens: 0 })
+  })
+})
+
 describe('subscribeTree', () => {
   it('assembles the tree from thread + node Store Resources', () => {
     // Minimal fake store: named resources with push-able snapshots + subscribers.
@@ -142,10 +168,11 @@ describe('subscribeTree', () => {
 
     const thread: ThreadDoc = { turns: ['r'], nodes: { r: { parentNodeId: null, depth: 0, childOrder: [] } } }
     push('harness.thread', 't1', thread)
-    push('harness.node', 'r', node({ nodeId: 'r', parentNodeId: null, depth: 0, text: 'hi' }))
+    push('harness.node', 'r', node({ nodeId: 'r', parentNodeId: null, depth: 0, text: 'hi', usage: { inputTokens: 40, outputTokens: 8, cachedInputTokens: 32 } }))
 
     expect(latest.turns).toEqual(['r'])
     expect(latest.nodes.r?.text).toBe('hi')
+    expect(latest.usage).toEqual({ inputTokens: 40, outputTokens: 8, totalTokens: 48, cachedInputTokens: 32, reasoningTokens: 0 })
     stop()
   })
 })

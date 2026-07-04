@@ -41,6 +41,7 @@ export {
   subscribeTree,
   diffTree,
   emptyTree,
+  sumUsage,
   type ClientTree,
   type StoreClient,
 } from './client-view'

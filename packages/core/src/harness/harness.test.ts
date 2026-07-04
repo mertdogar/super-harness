@@ -28,6 +28,12 @@ describe('chunk-adapter', () => {
     expect(a.usage?.totalTokens).toBe(5)
   })
 
+  it('captures cachedInputTokens from the finish chunk', () => {
+    const a = createChunkAdapter(new Set())
+    a.map({ type: 'finish', payload: { output: { usage: { inputTokens: 100, outputTokens: 20, totalTokens: 120, reasoningTokens: 5, cachedInputTokens: 80 } } } })
+    expect(a.usage).toEqual({ inputTokens: 100, outputTokens: 20, totalTokens: 120, reasoningTokens: 5, cachedInputTokens: 80 })
+  })
+
   it('maps tool-error to a settled tool_end so the call never sticks at input-available', () => {
     const a = createChunkAdapter(new Set())
     expect(a.map({ type: 'tool-error', payload: { toolCallId: 'c9', toolName: 'weather', error: new Error('boom') } })).toEqual([

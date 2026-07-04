@@ -5,17 +5,39 @@
 // consumer — this TUI, a browser chat, an eval — reads a session the same way.
 
 import { HARNESS_NODE_STORE, HARNESS_THREAD_STORE } from './contract'
-import type { HarnessEvent, TodoItem } from './events'
+import type { HarnessEvent, TodoItem, TokenUsage } from './events'
 import type { NodeState, NodeStatus, ThreadDoc } from './tree'
 
 export interface ClientTree {
   turns: string[]
   todos?: TodoItem[]
   nodes: Record<string, NodeState>
+  // Derived cumulative token total over `nodes` (populated by subscribeTree).
+  usage?: TokenUsage
 }
 
 export function emptyTree(): ClientTree {
   return { turns: [], nodes: {} }
+}
+
+// Cumulative token total over a set of nodes. cached/reasoning are informational
+// sub-counts (⊆ input/output), so they're summed independently; totalTokens is
+// recomputed from parts rather than trusting per-node reported totals. Level-
+// agnostic: pass the whole tree for a conversation total, or a turn's subtree.
+export function sumUsage(nodes: Iterable<NodeState>): TokenUsage {
+  let inputTokens = 0
+  let outputTokens = 0
+  let cachedInputTokens = 0
+  let reasoningTokens = 0
+  for (const n of nodes) {
+    const u = n.usage
+    if (!u) continue
+    inputTokens += u.inputTokens ?? 0
+    outputTokens += u.outputTokens ?? 0
+    cachedInputTokens += u.cachedInputTokens ?? 0
+    reasoningTokens += u.reasoningTokens ?? 0
+  }
+  return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, cachedInputTokens, reasoningTokens }
 }
 
 // Structural view of a super-line client store handle — avoids coupling to the
@@ -46,7 +68,8 @@ export function subscribeTree(
   const nodes: Record<string, NodeState> = {}
   let thread: ThreadDoc | undefined
 
-  const notify = () => onChange({ turns: thread?.turns ?? [], todos: thread?.todos, nodes: { ...nodes } })
+  const notify = () =>
+    onChange({ turns: thread?.turns ?? [], todos: thread?.todos, nodes: { ...nodes }, usage: sumUsage(Object.values(nodes)) })
 
   const openNode = (id: string) => {
     if (nodeHandles.has(id)) return

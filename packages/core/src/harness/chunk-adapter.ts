@@ -77,6 +77,7 @@ export function createChunkAdapter(suppressToolNames: ReadonlySet<string>): Chun
             outputTokens: u.outputTokens,
             totalTokens: u.totalTokens,
             reasoningTokens: u.reasoningTokens,
+            cachedInputTokens: u.cachedInputTokens,
           }
         }
         return []

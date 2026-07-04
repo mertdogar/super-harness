@@ -11,6 +11,7 @@ export const tokenUsageSchema = z.object({
   outputTokens: z.number().optional(),
   totalTokens: z.number().optional(),
   reasoningTokens: z.number().optional(),
+  cachedInputTokens: z.number().optional(),
 })
 export type TokenUsage = z.infer<typeof tokenUsageSchema>
 
