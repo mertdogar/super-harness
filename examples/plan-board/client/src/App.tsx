@@ -3,7 +3,7 @@
 // (tree.todos), then the EXECUTION stream (recursive NodeView per turn). ask_user
 // reuses the composer as a reply box; tool approval opens the shared dialog.
 import { useHarness, useHarnessClient, type PendingAsk } from "@super-harness/react"
-import type { TodoItem } from "@super-harness/shared"
+import type { TodoItem, TokenUsage } from "@super-harness/shared"
 import { CircleIcon, CircleCheckBigIcon, LoaderIcon, MessageCircleQuestionIcon, XIcon } from "lucide-react"
 import { Message, MessageContent } from "@/components/ai-elements/message"
 import {
@@ -36,9 +36,12 @@ export default function App() {
     <div className="mx-auto flex min-h-svh w-full max-w-3xl flex-col gap-6 px-4 py-8">
       <header className="flex items-center gap-2">
         <h1 className="font-semibold text-lg">super-harness · plan board</h1>
-        <Badge variant={connected ? "default" : "outline"} className="ml-auto">
-          {connected ? "connected" : "offline"}
-        </Badge>
+        <div className="ml-auto flex items-center gap-2">
+          <UsageBadge usage={tree.usage} />
+          <Badge variant={connected ? "default" : "outline"}>
+            {connected ? "connected" : "offline"}
+          </Badge>
+        </div>
       </header>
 
       <section className="flex flex-col gap-2">
@@ -114,6 +117,22 @@ function Plan({ todos, busy }: { todos: TodoItem[] | undefined; busy: boolean })
       ))}
     </ul>
   )
+}
+
+// Cumulative token total for the conversation (tree.usage), with a full
+// breakdown on hover. Hidden until the first turn reports usage.
+function UsageBadge({ usage }: { usage: TokenUsage | undefined }) {
+  if (!usage || !usage.totalTokens) return null
+  const title = `input ${usage.inputTokens ?? 0} · output ${usage.outputTokens ?? 0} · cached ${usage.cachedInputTokens ?? 0} · reasoning ${usage.reasoningTokens ?? 0}`
+  return (
+    <Badge variant="outline" className="font-mono" title={title}>
+      {fmtTokens(usage.totalTokens)} tok
+    </Badge>
+  )
+}
+
+function fmtTokens(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
 function TodoIcon({ status }: { status: TodoItem["status"] }) {

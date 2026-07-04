@@ -32,16 +32,22 @@ function connView(conn: Conn): { glyph: string; text: string; color: string } {
   return { glyph: "◌", text: "connecting…", color: COLORS.yellow }
 }
 
-function Topbar({ session, conn, host }: { session: HarnessSession; conn: Conn; host: string }) {
+function Topbar({ session, conn, host, tokens }: { session: HarnessSession; conn: Conn; host: string; tokens: number }) {
   const right = connView(conn)
   return (
     <box flexDirection="row" height={1} paddingLeft={1} paddingRight={1}>
       <text fg={COLORS.dim}>{`thread ${session.threadId}`}</text>
       <box flexGrow={1} />
+      {tokens > 0 ? <text fg={COLORS.dim}>{`${fmtTokens(tokens)} tok  `}</text> : null}
       <text fg={right.color}>{`${right.glyph} ${right.text}  `}</text>
       <text fg={COLORS.dim}>{host}</text>
     </box>
   )
+}
+
+// Cumulative conversation token total (tree.usage.totalTokens), compact.
+function fmtTokens(n: number): string {
+  return n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n)
 }
 
 function renderBlock(block: Block, index: number, tree: ClientTree, live: boolean, full: boolean) {
@@ -202,7 +208,7 @@ function Cockpit({ session }: { session: HarnessSession }) {
 
   return (
     <box flexDirection="column" width={width} height={height}>
-      <Topbar session={session} conn={conn} host={host} />
+      <Topbar session={session} conn={conn} host={host} tokens={tree.usage?.totalTokens ?? 0} />
       <scrollbox scrollY stickyScroll stickyStart="bottom" flexGrow={1} paddingLeft={1} paddingRight={1}>
         {blocks.map((block, i) => renderBlock(block, i, tree, i === lastTurn && busy, session.config.full))}
       </scrollbox>
