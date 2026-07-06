@@ -2,7 +2,7 @@
   "name": "@super-harness/web-server",
   "version": "0.0.0",
   "private": true,
-  "description": "Fullstack web example, backend half: createHarness + serve() attached to a Hono http server.",
+  "description": "Fullstack web example, backend half: createHarness + the harness() plugin on createSuperLineServer, attached to a Hono http server.",
   "type": "module",
   "scripts": {
     "dev": "tsx watch --env-file=../../../.env server.ts",
@@ -20,6 +20,8 @@
     "@mastra/pg": "^1.14.3",
     "@super-harness/core": "workspace:*",
     "@super-harness/server": "workspace:*",
+    "@super-line/core": "^0.10.1",
+    "@super-line/server": "^0.10.2",
     "@super-line/adapter-libp2p": "^0.6.0",
     "@super-line/transport-websocket": "^0.6.0",
     "hono": "^4.12.10",

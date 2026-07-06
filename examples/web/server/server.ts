@@ -23,8 +23,11 @@ import { gateway } from "ai"
 import { z } from "zod"
 import { webSocketServerTransport } from "@super-line/transport-websocket"
 import { inspector } from "@super-line/plugin-inspector"
+import { createSuperLineServer } from "@super-line/server"
+import { defineContract } from "@super-line/core"
+import { sqliteCollections } from "@super-line/collections-sqlite"
 import { createHarness } from "@super-harness/core"
-import { serve, type ServeConfig } from "@super-harness/server"
+import { harness, harnessContract } from "@super-harness/server"
 import { createLibp2pAdapter } from '@super-line/adapter-libp2p'
 
 const PORT = Number(process.env.SUPER_HARNESS_PORT ?? 4111)
@@ -94,8 +97,9 @@ const STORAGE = process.env.SUPER_HARNESS_STORAGE ?? "libsql"
 const PG_URL = process.env.PG_URL ?? ""
 const ELECTRIC_URL = process.env.ELECTRIC_URL
 
+type TreeStorage = { type: "sqlite"; file: string } | { type: "pglite"; pgUrl: string; electricUrl?: string }
 let storage: LibSQLStore | PostgresStore
-let treeStorage: ServeConfig["storage"]
+let treeStorage: TreeStorage
 if (STORAGE === "libsql") {
   const dbClient = createClient({ url: "file:./dev.db" })
   storage = new LibSQLStore({ id: "web", client: dbClient })
@@ -143,7 +147,7 @@ const supervisor = new Agent({
 // (out of scope here; resourceFor is sync and can't see the connection).
 const RESOURCE = "web"
 
-const harness = createHarness({
+const engine = createHarness({
   supervisor,
   subagents: [{ agent: worker }],
   memory: mem(), // enables the thread sidebar + per-thread mode persistence
@@ -182,18 +186,38 @@ const httpServer = serveHttp({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`[web-server] http://localhost:${info.port}  ws://localhost:${info.port}/super-line  model=${MODEL}  storage=${STORAGE}${node}`)
 }) as Server
 
-// inspector: read-only Control Center tap, UNAUTHENTICATED — dev only. Now a
-// first-class plugin (@super-line/plugin-inspector) composed via serve()'s
-// `plugins` — its connection class negotiates the CC subprotocol itself, so the
-// transport no longer carries an `inspector` flag.
-// Watch live: pnpm -F @super-harness/web-server inspect
+// The plugin model, explicit (what serve() does under the hood). Build the tree
+// collections backend from the selected storage: a local sqlite file by default;
+// central PG + Electric-synced replicas for pglite (the multi-node choice, loaded
+// on demand).
+const collections =
+  treeStorage.type === "pglite"
+    ? await (await import("@super-line/collections-pglite")).pgliteCollections({
+        pgUrl: treeStorage.pgUrl,
+        electricUrl: treeStorage.electricUrl,
+      })
+    : sqliteCollections({ file: treeStorage.file })
+
+// inspector: read-only Control Center tap (UNAUTHENTICATED — dev only), a
+// first-class plugin composed after harness(). Watch live: pnpm -F
+// @super-harness/web-server inspect
 const INSPECTOR = process.env.SUPER_HARNESS_INSPECTOR !== "0"
-await serve(harness, {
-  storage: treeStorage,
+const contract = defineContract({ plugins: [harnessContract()], roles: { user: {} } })
+const srv = createSuperLineServer(contract, {
   transports: [webSocketServerTransport({ server: httpServer, path: "/super-line" })],
-  plugins: INSPECTOR ? [inspector()] : [],
-  // The collections backend needs no adapter — Electric is its CRDT bus. This broker-less libp2p mesh is a
-  // SEPARATE plane carrying presence + inspector so the Control Center sees the whole cluster. No node list,
-  // no bootstrap, no peer IDs — every node finds its peers over mDNS and the adapter dials them itself.
-  adapter: await createLibp2pAdapter({ discovery: 'mdns' }),
+  collections,
+  // Preserve serve()'s principal fallback userId ?? resourceId ?? 'local': the
+  // client sends resourceId:'web' and no userId, so every tab on every node
+  // authenticates as 'web' — which is what makes the cross-node tree read succeed.
+  authenticate: (h) => {
+    const q = (h as { query?: Record<string, string> })?.query ?? {}
+    return { role: "user" as const, ctx: { userId: q.userId ?? q.resourceId ?? "local", resourceId: q.resourceId } }
+  },
+  identify: (conn) => (conn.ctx as { userId: string }).userId,
+  plugins: [harness(engine), ...(INSPECTOR ? [inspector()] : [])],
+  // The collections data bus needs no adapter — Electric is its CRDT bus. This
+  // broker-less libp2p mesh is a SEPARATE plane carrying presence + inspector so
+  // the Control Center sees the whole cluster: every node finds peers over mDNS.
+  adapter: await createLibp2pAdapter({ discovery: "mdns" }),
 })
+srv.implement({} as never)

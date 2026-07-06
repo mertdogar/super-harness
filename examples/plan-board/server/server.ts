@@ -1,7 +1,8 @@
 // Backend for the "plan board" example: a scripted PLANNER that showcases the
 // harness's todo/task feature end to end, alongside ask_user, delegation, and a
-// gated tool. Standalone serve() over a bare node:http server — no Hono, libp2p,
-// Electric, or Postgres. Run it:
+// gated tool. Explicit plugin composition (createSuperLineServer +
+// plugins:[harness()]) over a bare node:http server — no Hono, libp2p, Electric,
+// or Postgres. Run it:
 //
 //   pnpm -F @super-harness/plan-board-server dev     # tsx watch, loads root .env
 //   pnpm -F @super-harness/plan-board-client dev     # vite on :5173, another shell
@@ -15,9 +16,12 @@ import { Memory } from "@mastra/memory"
 import { LibSQLStore } from "@mastra/libsql"
 import { gateway } from "@ai-sdk/gateway"
 import { z } from "zod"
+import { createSuperLineServer } from "@super-line/server"
+import { defineContract } from "@super-line/core"
+import { memoryCollections } from "@super-line/collections-memory"
 import { webSocketServerTransport } from "@super-line/transport-websocket"
 import { createHarness } from "@super-harness/core"
-import { serve } from "@super-harness/server"
+import { harness, harnessContract } from "@super-harness/server"
 
 const PORT = Number(process.env.SUPER_HARNESS_PORT ?? 4113)
 const MODEL = process.env.CHAT_MODEL ?? "anthropic/claude-sonnet-4.5"
@@ -112,7 +116,7 @@ const supervisor = new Agent({
   memory: mem(),
 })
 
-const harness = createHarness({
+const engine = createHarness({
   supervisor,
   subagents: [{ agent: researcher }],
   memory: mem(), // enables harness.listThreads (client calls it on connect) + recall
@@ -122,9 +126,24 @@ const harness = createHarness({
   maxSteps: 30,
 })
 
+// The plugin model, explicit (what serve() does under the hood): merge
+// harnessContract() into the contract, give the server ONE collections backend +
+// identify → the principal, and add harness(engine) to `plugins` (harness.* is
+// subtracted from implement). memoryCollections() suits the fresh-thread-per-load
+// client — tree durability buys nothing here.
+const contract = defineContract({ plugins: [harnessContract()], roles: { user: {} } })
+
 const httpServer = createServer()
-await serve(harness, {
-  storage: { type: "memory" },
+const srv = createSuperLineServer(contract, {
   transports: [webSocketServerTransport({ server: httpServer, path: "/super-line" })],
+  collections: memoryCollections(),
+  authenticate: (h) => {
+    const q = (h as { query?: Record<string, string> })?.query ?? {}
+    return { role: "user" as const, ctx: { userId: q.userId ?? "local", resourceId: q.resourceId } }
+  },
+  identify: (conn) => (conn.ctx as { userId: string }).userId,
+  plugins: [harness(engine)],
 })
+srv.implement({} as never)
+
 httpServer.listen(PORT, () => console.log(`[plan-board] ws://localhost:${PORT}/super-line  model=${MODEL}`))

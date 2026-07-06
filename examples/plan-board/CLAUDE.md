@@ -11,6 +11,10 @@ streaming, and an approval gate in a plan-first layout instead of web's chat.
 - Server loads the **root** `.env` (`tsx --env-file=../../../.env`); exits 2
   without `AI_GATEWAY_API_KEY`. `SUPER_HARNESS_PORT` (4113) / `CHAT_MODEL`
   (default `anthropic/claude-sonnet-4.5`) override.
+- **Explicit plugin composition**, not `serve()`: the server builds its contract
+  with `defineContract({ plugins: [harnessContract()] })`, hands `memoryCollections()`
+  to `createSuperLineServer`, and adds `harness(engine)` to `plugins` (harness.* is
+  subtracted from `implement()`). `dev-server` keeps `serve()` as the sugar demo.
 - **The four beats are driven by instructions, not registration.** `todo`,
   `ask_user`, and `delegate` are injected by the harness per turn — never added
   to the Agent. The supervisor's scripted instructions make it (1) ask_user once,
@@ -27,13 +31,14 @@ streaming, and an approval gate in a plan-first layout instead of web's chat.
 - **Mastra memory (`dev.db`) is on deliberately.** Without it
   `harness.listThreads` throws, and the react client calls it on connect, which
   would surface a spurious `notice` banner. Memory also gives cross-turn recall
-  (revise the plan). The tree Store stays `{ type: "memory" }` — the client mints
-  a fresh threadId per load, so tree durability buys nothing. `dev.db*` is
-  gitignored (root `*.db`).
+  (revise the plan). The tree collections backend stays `memoryCollections()` —
+  the client mints a fresh threadId per load, so tree durability buys nothing.
+  `dev.db*` is gitignored (root `*.db`).
 - **Client is owned/url mode.** `createHarnessClient({ url, threadId: nanoid() })`
   passed as the `client` INSTANCE to `<HarnessProvider client={…}>` (not a
   config). `useHarness()` returns state directly; `useHarnessClient()` gives the
-  methods. Don't pass `stores` in url mode — it defaults to in-memory replicas.
+  methods. There's no `stores` config anymore — collections ride the built-in
+  `client.collection()`.
 - Client actions: `client.send(goal)`, `client.reply(text)` answers a
   `pendingAsk`, `client.respond("approve" | "decline")` resolves a
   `pendingApproval`. Surface `state.notice` — `reply`/`respond` keep the pending
