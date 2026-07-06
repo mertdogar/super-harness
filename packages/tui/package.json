@@ -21,7 +21,7 @@
     "@opentui/core": "^0.1.103",
     "@opentui/react": "^0.1.103",
     "@super-harness/shared": "workspace:*",
-    "@super-line/client": "^0.8.0",
+    "@super-line/client": "^0.8.1",
     "@super-line/core": "^0.10.1",
     "@super-line/store-memory": "^0.9.0",
     "@super-line/transport-websocket": "^0.6.0",

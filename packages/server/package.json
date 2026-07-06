@@ -75,7 +75,7 @@
     "@electric-sql/pglite": "^0.5.4",
     "@libsql/client": "^0.17.4",
     "@mastra/core": "1.49.0-alpha.2",
-    "@super-line/client": "^0.8.0",
+    "@super-line/client": "^0.8.1",
     "@super-line/collections-memory": "^0.1.0",
     "@super-line/collections-pglite": "^0.1.0",
     "@super-line/collections-sqlite": "^0.1.0",

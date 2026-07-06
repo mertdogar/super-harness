@@ -250,8 +250,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@super-line/client':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^0.8.1
+        version: 0.8.1
       '@super-line/core':
         specifier: ^0.10.1
         version: 0.10.1
@@ -601,8 +601,8 @@ importers:
         version: link:../shared
     devDependencies:
       '@super-line/client':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^0.8.1
+        version: 0.8.1
       '@super-line/store-memory':
         specifier: ^0.9.0
         version: 0.9.0
@@ -638,8 +638,8 @@ importers:
         specifier: 1.49.0-alpha.2
         version: 1.49.0-alpha.2(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
       '@super-line/client':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^0.8.1
+        version: 0.8.1
       '@super-line/collections-memory':
         specifier: ^0.1.0
         version: 0.1.0
@@ -699,8 +699,8 @@ importers:
         specifier: workspace:*
         version: link:../shared
       '@super-line/client':
-        specifier: ^0.8.0
-        version: 0.8.0
+        specifier: ^0.8.1
+        version: 0.8.1
       '@super-line/core':
         specifier: ^0.10.1
         version: 0.10.1
@@ -2872,8 +2872,8 @@ packages:
     resolution: {integrity: sha512-jXxCRX482+DyoD3nTxkLl/LwhIRXvv0qpj6OfnHm+LPrKyESap4Bv6byxjDhxSDcoP7aJ+YnCWVlQzJywGMrCQ==}
     engines: {node: '>=18'}
 
-  '@super-line/client@0.8.0':
-    resolution: {integrity: sha512-XusCU8QSjRq2aRNwOqppxBWWhwkjitqmMGG0UhOICa67EJVunNgSkGKly9S1Vx43JfaDFDOM8HkGz3BCRGpfng==}
+  '@super-line/client@0.8.1':
+    resolution: {integrity: sha512-MccnCwhx9G+de0dINu/e0Nd0GgvDCMkAn2uExWryrIgQgH3AB97EV1S7/2vvZM5TebRc057Nz6u3WY49bdiyvQ==}
     engines: {node: '>=18'}
 
   '@super-line/collections-memory@0.1.0':
@@ -8169,7 +8169,7 @@ snapshots:
       - bufferutil
       - utf-8-validate
 
-  '@super-line/client@0.8.0':
+  '@super-line/client@0.8.1':
     dependencies:
       '@super-line/core': 0.10.1
 
