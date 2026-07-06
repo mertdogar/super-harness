@@ -1,12 +1,16 @@
-// The client read-side of the Store transport — the symmetric counterpart to the
-// server's projector. `subscribeTree` assembles the reactive tree from the
-// `thread` + `node` Store Resources; `diffTree` turns two snapshots into the
-// HarnessEvent stream a consumer wants incrementally (the headless printer). Any
-// consumer — this TUI, a browser chat, an eval — reads a session the same way.
+// The client read-side of the collections transport — the symmetric counterpart
+// to the server's projector. `subscribeTree` assembles the reactive tree from
+// the `harness.threads`/`harness.nodes`/`harness.tools` collection subscriptions
+// plus the ephemeral token-delta EVENTS (reasoning/text/argsText live preview);
+// `diffTree` turns two snapshots into the HarnessEvent stream a consumer wants
+// incrementally (the headless printer). Any consumer — this TUI, a browser chat,
+// an eval — reads a session the same way.
 
-import { HARNESS_NODE_STORE, HARNESS_THREAD_STORE } from './contract'
+import { eq } from '@super-line/core'
+import { HARNESS_NODES, HARNESS_THREADS, HARNESS_TOOLS } from './contract'
+import type { NodeRow, ThreadRow, ToolRow } from './contract'
 import type { HarnessEvent, TodoItem, TokenUsage } from './events'
-import type { NodeState, NodeStatus, ThreadDoc } from './tree'
+import type { NodeState, NodeStatus, ToolState } from './tree'
 
 export interface ClientTree {
   turns: string[]
@@ -40,67 +44,129 @@ export function sumUsage(nodes: Iterable<NodeState>): TokenUsage {
   return { inputTokens, outputTokens, totalTokens: inputTokens + outputTokens, cachedInputTokens, reasoningTokens }
 }
 
-// Structural view of a super-line client store handle — avoids coupling to the
-// client package's exact generics across core versions. getSnapshot is `unknown`
-// (as the real client is); callers assert the doc shape.
-interface Handle {
-  getSnapshot(): unknown
+// Structural view of the super-line client surface subscribeTree drives —
+// `collection(name).subscribe(query)` for the durable rows and `on(event, cb)`
+// for the ephemeral token stream. Kept loose (not the client's exact generics)
+// so a client built against ANY host contract that merges harnessContract() fits.
+interface RowSet {
+  rows(): unknown[]
   subscribe(cb: () => void): () => void
-  close(): void
+  readonly ready: Promise<void>
 }
-interface StoreNs {
-  open(id: string): Handle
+interface CollectionView {
+  subscribe(query?: unknown): RowSet
 }
-export interface StoreClient {
-  store(name: string): StoreNs
+export interface TreeClient {
+  collection(name: string): CollectionView
+  on(event: string, handler: (data: never) => void): () => void
 }
 
-// Opens the thread skeleton, then every node Resource it references (and any that
-// appear later), and calls `onChange` with the assembled tree on each update.
+interface DeltaEvent {
+  threadId: string
+  nodeId: string
+  toolCallId?: string
+  text?: string
+  argsTextDelta?: string
+}
+
+// Subscribes the thread/node/tool rows for `threadId` plus the token-delta events,
+// re-assembling the tree on every change. Model (c): while a node/tool runs, its
+// reasoning/text/argsText come from the accumulated DELTA stream (the row's
+// strings stay empty until it settles); once terminal, the row is authoritative.
 export function subscribeTree(
-  client: StoreClient,
+  client: TreeClient,
   threadId: string,
   onChange: (tree: ClientTree) => void,
 ): () => void {
-  const nodeStore = client.store(HARNESS_NODE_STORE)
-  const threadStore = client.store(HARNESS_THREAD_STORE)
-  const nodeHandles = new Map<string, Handle>()
-  const nodes: Record<string, NodeState> = {}
-  let thread: ThreadDoc | undefined
+  const threadsSub = client.collection(HARNESS_THREADS).subscribe({ filter: eq('id', threadId) })
+  const nodesSub = client.collection(HARNESS_NODES).subscribe({ filter: eq('threadId', threadId) })
+  const toolsSub = client.collection(HARNESS_TOOLS).subscribe({ filter: eq('threadId', threadId) })
 
-  const notify = () =>
-    onChange({ turns: thread?.turns ?? [], todos: thread?.todos, nodes: { ...nodes }, usage: sumUsage(Object.values(nodes)) })
+  // Live token accumulators, keyed by node / toolCall — cleared when the row settles.
+  const liveText = new Map<string, string>()
+  const liveReasoning = new Map<string, string>()
+  const liveArgs = new Map<string, string>()
 
-  const openNode = (id: string) => {
-    if (nodeHandles.has(id)) return
-    const h = nodeStore.open(id)
-    nodeHandles.set(id, h)
-    const pull = () => {
-      const s = h.getSnapshot() as NodeState | undefined
-      if (s) nodes[id] = s
+  const build = (): void => {
+    const thread = (threadsSub.rows() as ThreadRow[])[0]
+    const toolsByNode = new Map<string, ToolRow[]>()
+    for (const tr of toolsSub.rows() as ToolRow[]) {
+      const list = toolsByNode.get(tr.nodeId) ?? []
+      list.push(tr)
+      toolsByNode.set(tr.nodeId, list)
     }
-    h.subscribe(() => {
-      pull()
-      notify()
-    })
-    pull()
+
+    const nodes: Record<string, NodeState> = {}
+    for (const row of nodesSub.rows() as NodeRow[]) {
+      const terminal = row.status !== 'running'
+      if (terminal) {
+        liveText.delete(row.id)
+        liveReasoning.delete(row.id)
+      }
+      const tools: Record<string, ToolState> = {}
+      for (const tr of toolsByNode.get(row.id) ?? []) {
+        const streaming = tr.status === 'input-streaming'
+        if (!streaming) liveArgs.delete(tr.id)
+        tools[tr.id] = {
+          toolCallId: tr.id,
+          toolName: tr.toolName,
+          status: tr.status,
+          argsText: streaming ? (liveArgs.get(tr.id) ?? '') : tr.argsText,
+          args: tr.args,
+          result: tr.result,
+          isError: tr.isError,
+          textOffset: tr.textOffset,
+        }
+      }
+      nodes[row.id] = {
+        nodeId: row.id,
+        parentNodeId: row.parentNodeId,
+        depth: row.depth,
+        agentType: row.agentType,
+        task: row.task,
+        status: row.status,
+        reasoning: terminal ? row.reasoning : (liveReasoning.get(row.id) ?? ''),
+        text: terminal ? row.text : (liveText.get(row.id) ?? ''),
+        toolOrder: row.toolOrder,
+        tools,
+        childOrder: row.childOrder,
+        usage: row.usage,
+        durationMs: row.durationMs,
+        error: row.error,
+        textOffset: row.textOffset,
+        pendingResume: row.pendingResume,
+      }
+    }
+    onChange({ turns: thread?.turns ?? [], todos: thread?.todos, nodes, usage: sumUsage(Object.values(nodes)) })
   }
 
-  const threadH = threadStore.open(threadId)
-  const pullThread = () => {
-    thread = threadH.getSnapshot() as ThreadDoc | undefined
-    if (thread) for (const id of Object.keys(thread.nodes)) openNode(id)
-  }
-  threadH.subscribe(() => {
-    pullThread()
-    notify()
-  })
-  pullThread()
-  notify()
+  const unsubs = [
+    threadsSub.subscribe(build),
+    nodesSub.subscribe(build),
+    toolsSub.subscribe(build),
+    client.on('harness.reasoningDelta', (e: DeltaEvent) => {
+      if (e.threadId !== threadId) return
+      liveReasoning.set(e.nodeId, (liveReasoning.get(e.nodeId) ?? '') + (e.text ?? ''))
+      build()
+    }),
+    client.on('harness.textDelta', (e: DeltaEvent) => {
+      if (e.threadId !== threadId) return
+      liveText.set(e.nodeId, (liveText.get(e.nodeId) ?? '') + (e.text ?? ''))
+      build()
+    }),
+    client.on('harness.toolInputDelta', (e: DeltaEvent) => {
+      if (e.threadId !== threadId || !e.toolCallId) return
+      liveArgs.set(e.toolCallId, (liveArgs.get(e.toolCallId) ?? '') + (e.argsTextDelta ?? ''))
+      build()
+    }),
+  ]
+
+  // Initial snapshot arrives via `.ready`; live changes via the subscribe cbs.
+  void Promise.all([threadsSub.ready, nodesSub.ready, toolsSub.ready]).then(build).catch(() => {})
+  build()
 
   return () => {
-    threadH.close()
-    for (const h of nodeHandles.values()) h.close()
+    for (const off of unsubs) off()
   }
 }
 

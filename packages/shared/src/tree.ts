@@ -36,6 +36,10 @@ export interface NodeState {
   usage?: TokenUsage
   durationMs?: number
   error?: string
+  // Set from the node row when a suspension is parked (server persists it on
+  // suspend, clears it on resume) — makes an ask_user prompt reconstructable
+  // after a mid-turn reload. Populated by subscribeTree, not by the fold.
+  pendingResume?: { resumeSchema?: string; request?: unknown }
 }
 
 export interface HarnessTree {

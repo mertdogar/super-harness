@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
-import { diffTree, subscribeTree, emptyTree, sumUsage, type ClientTree, type StoreClient } from './client-view'
-import type { NodeState, ThreadDoc, ToolState } from './tree'
+import { diffTree, subscribeTree, emptyTree, sumUsage, type ClientTree, type TreeClient } from './client-view'
+import type { NodeRow, ThreadRow, ToolRow } from './contract'
+import type { NodeState, ToolState } from './tree'
 
 function node(partial: Partial<NodeState> & { nodeId: string; parentNodeId: string | null; depth: number }): NodeState {
   return {
@@ -133,46 +134,124 @@ describe('sumUsage', () => {
   })
 })
 
-describe('subscribeTree', () => {
-  it('assembles the tree from thread + node Store Resources', () => {
-    // Minimal fake store: named resources with push-able snapshots + subscribers.
-    const resources = new Map<string, { snap: unknown; subs: Set<() => void> }>()
-    const res = (key: string) => {
-      let r = resources.get(key)
-      if (!r) resources.set(key, (r = { snap: undefined, subs: new Set() }))
-      return r
-    }
-    const push = (ns: string, id: string, snap: unknown) => {
-      const r = res(`${ns}:${id}`)
-      r.snap = snap
-      for (const cb of r.subs) cb()
-    }
-    const client: StoreClient = {
-      store: (ns) => ({
-        open: <T,>(id: string) => {
-          const r = res(`${ns}:${id}`)
-          return {
-            getSnapshot: () => r.snap as T | undefined,
-            subscribe: (cb: () => void) => {
-              r.subs.add(cb)
-              return () => r.subs.delete(cb)
-            },
-            close: () => {},
-          }
-        },
-      }),
-    }
+function threadRow(p: Partial<ThreadRow> & { id: string }): ThreadRow {
+  return { turns: [], todos: [], createdAt: 0, updatedAt: 0, ...p }
+}
+function nodeRow(p: Partial<NodeRow> & { id: string; threadId: string; parentNodeId: string | null; depth: number }): NodeRow {
+  return { status: 'running', reasoning: '', text: '', toolOrder: [], childOrder: [], ...p }
+}
+function toolRow(p: Partial<ToolRow> & { id: string; threadId: string; nodeId: string; status: ToolRow['status'] }): ToolRow {
+  return { toolName: 'x', argsText: '', ...p }
+}
 
+// Fake collections client: per-collection row maps + delta-event handlers, with
+// push-able rows that notify rowset subscribers. Ignores the query filter (the
+// test pushes only one thread's rows).
+function fakeClient() {
+  const rowsByColl = new Map<string, Map<string, { id: string }>>()
+  const subs = new Map<string, Set<() => void>>()
+  const handlers = new Map<string, Set<(d: unknown) => void>>()
+  const coll = (c: string) => rowsByColl.get(c) ?? (rowsByColl.set(c, new Map()), rowsByColl.get(c)!)
+  const client: TreeClient = {
+    collection: (name) => ({
+      subscribe: () => ({
+        rows: () => [...coll(name).values()],
+        subscribe: (cb: () => void) => {
+          const s = subs.get(name) ?? new Set<() => void>()
+          s.add(cb)
+          subs.set(name, s)
+          return () => s.delete(cb)
+        },
+        ready: Promise.resolve(),
+      }),
+    }),
+    on: (event: string, handler: (data: never) => void) => {
+      const s = handlers.get(event) ?? new Set<(d: unknown) => void>()
+      s.add(handler as (d: unknown) => void)
+      handlers.set(event, s)
+      return () => s.delete(handler as (d: unknown) => void)
+    },
+  }
+  const put = (c: string, row: { id: string }) => {
+    coll(c).set(row.id, row)
+    for (const cb of subs.get(c) ?? []) cb()
+  }
+  const emit = (event: string, data: unknown) => {
+    for (const h of handlers.get(event) ?? []) h(data)
+  }
+  return { client, put, emit }
+}
+
+describe('subscribeTree', () => {
+  it('assembles the tree from thread + node + tool rows, folding usage', () => {
+    const { client, put } = fakeClient()
     let latest: ClientTree = emptyTree()
     const stop = subscribeTree(client, 't1', (tree) => (latest = tree))
 
-    const thread: ThreadDoc = { turns: ['r'], nodes: { r: { parentNodeId: null, depth: 0, childOrder: [] } } }
-    push('harness.thread', 't1', thread)
-    push('harness.node', 'r', node({ nodeId: 'r', parentNodeId: null, depth: 0, text: 'hi', usage: { inputTokens: 40, outputTokens: 8, cachedInputTokens: 32 } }))
+    put('harness.threads', threadRow({ id: 't1', turns: ['r'] }))
+    put(
+      'harness.nodes',
+      nodeRow({
+        id: 'r',
+        threadId: 't1',
+        parentNodeId: null,
+        depth: 0,
+        status: 'complete',
+        text: 'hi',
+        usage: { inputTokens: 40, outputTokens: 8, cachedInputTokens: 32 },
+      }),
+    )
+    put('harness.tools', toolRow({ id: 'c1', threadId: 't1', nodeId: 'r', toolName: 'search', status: 'output-available', result: 'ok' }))
 
     expect(latest.turns).toEqual(['r'])
     expect(latest.nodes.r?.text).toBe('hi')
+    expect(latest.nodes.r?.tools.c1).toMatchObject({ toolName: 'search', status: 'output-available', result: 'ok' })
     expect(latest.usage).toEqual({ inputTokens: 40, outputTokens: 8, totalTokens: 48, cachedInputTokens: 32, reasoningTokens: 0 })
+    stop()
+  })
+
+  it('overlays live token deltas on a running node, then defers to the row once terminal', () => {
+    const { client, put, emit } = fakeClient()
+    let latest: ClientTree = emptyTree()
+    const stop = subscribeTree(client, 't1', (tree) => (latest = tree))
+
+    put('harness.threads', threadRow({ id: 't1', turns: ['r'] }))
+    put('harness.nodes', nodeRow({ id: 'r', threadId: 't1', parentNodeId: null, depth: 0, status: 'running' }))
+
+    // Running node: text/reasoning come from the delta stream, not the (empty) row.
+    emit('harness.textDelta', { threadId: 't1', nodeId: 'r', text: 'hel' })
+    emit('harness.textDelta', { threadId: 't1', nodeId: 'r', text: 'lo' })
+    emit('harness.reasoningDelta', { threadId: 't1', nodeId: 'r', text: 'thinking' })
+    expect(latest.nodes.r?.text).toBe('hello')
+    expect(latest.nodes.r?.reasoning).toBe('thinking')
+
+    // Deltas for another thread are ignored.
+    emit('harness.textDelta', { threadId: 'other', nodeId: 'r', text: 'X' })
+    expect(latest.nodes.r?.text).toBe('hello')
+
+    // Terminal: the row's final strings win over the (now-cleared) live overlay.
+    put('harness.nodes', nodeRow({ id: 'r', threadId: 't1', parentNodeId: null, depth: 0, status: 'complete', text: 'hello world', reasoning: 'thought' }))
+    expect(latest.nodes.r?.text).toBe('hello world')
+    expect(latest.nodes.r?.reasoning).toBe('thought')
+    stop()
+  })
+
+  it('streams tool argsText from toolInputDelta while input-streaming', () => {
+    const { client, put, emit } = fakeClient()
+    let latest: ClientTree = emptyTree()
+    const stop = subscribeTree(client, 't1', (tree) => (latest = tree))
+
+    put('harness.threads', threadRow({ id: 't1', turns: ['r'] }))
+    put('harness.nodes', nodeRow({ id: 'r', threadId: 't1', parentNodeId: null, depth: 0, toolOrder: ['c1'] }))
+    put('harness.tools', toolRow({ id: 'c1', threadId: 't1', nodeId: 'r', toolName: 'search', status: 'input-streaming' }))
+
+    emit('harness.toolInputDelta', { threadId: 't1', nodeId: 'r', toolCallId: 'c1', argsTextDelta: '{"q":' })
+    emit('harness.toolInputDelta', { threadId: 't1', nodeId: 'r', toolCallId: 'c1', argsTextDelta: '"x"}' })
+    expect(latest.nodes.r?.tools.c1?.argsText).toBe('{"q":"x"}')
+
+    // Settled: the row's argsText wins.
+    put('harness.tools', toolRow({ id: 'c1', threadId: 't1', nodeId: 'r', toolName: 'search', status: 'input-available', argsText: '{"q":"x"}', args: { q: 'x' } }))
+    expect(latest.nodes.r?.tools.c1?.args).toEqual({ q: 'x' })
     stop()
   })
 })
