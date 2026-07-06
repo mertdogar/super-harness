@@ -6,7 +6,6 @@
 
 import { createSuperLineClient, type SuperLineClient } from "@super-line/client"
 import { webSocketClientTransport } from "@super-line/transport-websocket"
-import { memoryStoreClient } from "@super-line/store-memory"
 import { nanoid } from "nanoid"
 import {
   contract,
@@ -112,7 +111,6 @@ export class HarnessSession {
       transport: webSocketClientTransport({ url: this.config.url }),
       role: "user",
       params: this.config.params,
-      stores: { "harness.node": memoryStoreClient(), "harness.thread": memoryStoreClient() },
     })
     this.client = client
 
@@ -150,8 +148,8 @@ export class HarnessSession {
       this.handlers.onStatus({ kind: "info", message: `follow-ups queued: ${payload.count}` })
     })
 
-    // Join first (the server pre-creates the thread Store Resource granted to us),
-    // THEN subscribe — opening a not-yet-existent Resource yields a dead handle.
+    // Join first (grants this user membership → RLS lets it read the thread's
+    // node/tool rows), THEN subscribe over the harness collections.
     await this.joinCurrent()
     this.subscribe()
     this.connected = client.connected
@@ -163,7 +161,7 @@ export class HarnessSession {
     this.unsubTree?.()
     this.prevTree = emptyTree()
     if (!this.client) return
-    this.unsubTree = subscribeTree(this.client, this.threadId, (tree) => this.onTree(tree))
+    this.unsubTree = subscribeTree(this.client as never, this.threadId, (tree) => this.onTree(tree))
   }
 
   private onTree(tree: ClientTree): void {
@@ -284,7 +282,7 @@ export class HarnessSession {
     if (!this.client) return
     try {
       const { threads } = await this.client["harness.listThreads"]({})
-      if (threads.length === 0) return this.info("no threads (is a memory store configured on the harness?)")
+      if (threads.length === 0) return this.info("no threads yet")
       for (const t of threads) {
         const marker = t.id === this.threadId ? "*" : " "
         this.emitLine(`${marker} ${t.id}${t.title ? `  ${t.title}` : ""}${t.updatedAt ? `  (${t.updatedAt})` : ""}`)
