@@ -6,8 +6,9 @@ exercised end to end via the dev-server.
 
 ## Map
 
-- `session.ts` — connection + state: joins the thread, opens Stores via
-  `subscribeTree`, tracks turns/pending ask_user/pending approval, exposes
+- `session.ts` — connection + state: joins the thread (grants membership),
+  reads the tree over the harness COLLECTIONS via `subscribeTree` (no Store
+  config), tracks turns/pending ask_user/pending approval, exposes
   `resumeCommand()`.
 - `dispatch.ts` — slash-command parser shared by both shells.
 - `tui.tsx` / `headless.ts` — the OpenTUI cockpit vs the marker-protocol

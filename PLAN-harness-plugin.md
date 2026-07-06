@@ -1,6 +1,8 @@
 # PLAN — super-harness as a super-line plugin (Collections + auth)
 
-Status: **APPROVED** (grill-me 2026-07-06). Convert super-harness from the super-line
+Status: **IMPLEMENTED** (2026-07-06). All steps 0–8 landed on branch
+`harness-plugin-collections`; shared/core/server/react green, all examples +
+dev-server typecheck clean. Convert super-harness from the super-line
 *composition* pattern (`harnessSurface` + `harnessStores` + `mountHarness`) into a first-class
 super-line **plugin** (`harness()`), and move the tree off the now-deprecated LWW Stores onto
 **Collections**, with the token firehose split off as ephemeral room events.

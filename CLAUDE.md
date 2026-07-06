@@ -55,15 +55,19 @@ Run the demo: `pnpm -F @super-harness/dev-server start` (needs
   the template. Never print the real `AI_GATEWAY_API_KEY`.
 - `pnpm format:check` fails repo-wide today (no oxfmt config yet) — it is not
   part of the definition of done.
-- The sqlite Store backend needs `better-sqlite3`'s native build — already
-  allowlisted via `allowBuilds` in `pnpm-workspace.yaml`, so a plain
+- The sqlite COLLECTIONS backend needs `better-sqlite3`'s native build —
+  already allowlisted via `allowBuilds` in `pnpm-workspace.yaml`, so a plain
   `pnpm install` handles it.
-- Known upstream super-line bug: a store subscribe's initial snapshot can
-  arrive after live co-writer deltas and clobber newer client state. Don't
-  paper over it here — `packages/server/src/wire.test.ts` keys assertions off
-  the event stream for this reason; the fix belongs in super-line.
+- Known upstream super-line bug: a collection/store subscribe's initial
+  snapshot can arrive after live co-writer deltas and clobber newer client
+  state. Don't paper over it here — a client must `await sub.ready` before it
+  depends on live updates (`wire.test.ts` does this before mutating a
+  pre-existing row); the fix belongs in super-line.
+- super-line client teardown mid-subscription rejects `DISCONNECTED` unhandled
+  (`void trackRequest` on close) — e2e test clients pass `onError: () => {}` to
+  swallow it; a real app rarely closes mid-turn.
 - The `.claude/skills/super-line` skill documents the super-line API — read it
-  before touching contract/Store code.
+  before touching contract/collection code.
 
 ## Wire compatibility
 
@@ -71,17 +75,41 @@ Run the demo: `pnpm -F @super-harness/dev-server start` (needs
 (`apply`). Server and clients must run the same `shared` version — the fold is
 not forward-compatible across event-vocabulary changes.
 
-## Composition (super-line ≥0.10)
+## The plugin model (super-line ≥0.10)
 
-super-harness is a composable super-line **library**: `shared` exports
-`harnessSurface` (a `defineSurface` fragment; every identifier is
-`harness.`-prefixed — requests/events/stores `harness.*`, rooms `harness:*`),
-a host merges it into its contract's `shared` block and mounts with
-`harnessStores` + `mountHarness`; `serve()` is the same pieces standalone.
-See `examples/composed-host` for the four host obligations. All
-`@super-line/*` packages are **peer** deps of shared/server/react (one core
-instance across host + library, per the super-line composition guide). The
-published `@super-line/server`/`client`/`store-*` still carry core as a
-REGULAR dependency (`^0.10.0`), so `pnpm-workspace.yaml` carries an
-`overrides: '@super-line/core': ^0.10.0` shim to force one copy — drop it once
+super-harness ships as a super-line **plugin**, not a hand-wired composition.
+Two halves:
+- `shared` exports **`harnessContract()`** — a `defineContractPlugin` fragment
+  contributing the four `harness.*` COLLECTIONS (`threads`/`nodes`/`tools`/
+  `membership`) + the harness surface on `shared`. A host merges it via
+  `defineContract({ plugins: [harnessContract(), …] })`.
+- `server` exports **`harness(engine)`** — a `SuperLinePlugin` (policies +
+  handlers + setup). The host adds it to `plugins: [...]`; `harness.*` handler
+  keys are subtracted from `implement()`. The host provides ONE `collections:`
+  backend (serves the harness + the host's own collections) and — via
+  `identify` — the `ctx.userId` principal the harness RLS keys on.
+- `react` exports **`harnessClient()`** / the headless `HarnessClient`, driving
+  the tree over `client.collection()`.
+
+`serve(engine, cfg)` is the same pieces standalone (it owns the backend +
+default query-auth + `identify`), with a `plugins?` passthrough to compose
+`inspector()`/`auth()` beside the harness. See `examples/composed-host` (the
+composition reference) and `examples/auth` (paired with `@super-line/plugin-auth`).
+
+All `@super-line/*` packages are **peer** deps of shared/server/react (one core
+instance across host + library). The published `@super-line/*` still carry core
+as a REGULAR dependency (`^0.10.1`), so `pnpm-workspace.yaml` carries an
+`overrides: '@super-line/core': ^0.10.1` shim to force one copy — drop it once
 upstream makes core a true peer.
+
+## Auth
+
+The harness is **auth-agnostic**: it reads `ctx.userId` however the host
+supplies it (query-param dev auth, `@super-line/plugin-auth`, or a custom
+scheme). Control ops (send/resume/abort/approve/switchMode/delete) reject a
+`viewer` membership; read ops don't — the viewer/operator split is a `role`
+column on `harness.membership` (per-run), NOT a connection role. Pair with
+`@super-line/plugin-auth` (`examples/auth`) and `identify` supplies the
+principal for free. Caveat: plugin-auth ships zod 3, super-harness zod 4 — a
+merged contract's exported type needs a loose `Contract` annotation (TS2742)
+until the versions align upstream.
