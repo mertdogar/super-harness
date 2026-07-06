@@ -57,15 +57,19 @@
     "@super-line/collections-memory": "^0.1.0",
     "@super-line/collections-pglite": "^0.1.0",
     "@super-line/collections-sqlite": "^0.1.0",
-    "@super-line/core": "^0.10.0",
-    "@super-line/server": "^0.10.1",
+    "@super-line/core": "^0.10.1",
+    "@super-line/server": "^0.10.2",
     "@super-line/store-memory": "^0.9.0",
     "@super-line/store-pglite": "^0.2.0",
     "@super-line/store-sqlite": "^0.4.0"
   },
   "peerDependenciesMeta": {
-    "@super-line/collections-pglite": { "optional": true },
-    "@super-line/store-pglite": { "optional": true }
+    "@super-line/collections-pglite": {
+      "optional": true
+    },
+    "@super-line/store-pglite": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
@@ -75,8 +79,8 @@
     "@super-line/collections-memory": "^0.1.0",
     "@super-line/collections-pglite": "^0.1.0",
     "@super-line/collections-sqlite": "^0.1.0",
-    "@super-line/core": "^0.10.0",
-    "@super-line/server": "^0.10.1",
+    "@super-line/core": "^0.10.1",
+    "@super-line/server": "^0.10.2",
     "@super-line/store-memory": "^0.9.0",
     "@super-line/store-pglite": "^0.2.0",
     "@super-line/store-sqlite": "^0.4.0",

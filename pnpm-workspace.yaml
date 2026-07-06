@@ -13,7 +13,7 @@ allowBuilds:
 # instance (contract identity / SuperLineError instanceof skew). Drop once
 # upstream makes core a true peerDependency.
 overrides:
-  '@super-line/core': ^0.10.0
+  '@super-line/core': ^0.10.1
 minimumReleaseAge: 0  
 minimumReleaseAgeExclude:
   - '@super-line/client@0.4.0'

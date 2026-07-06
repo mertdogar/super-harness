@@ -204,7 +204,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@super-line/core': ^0.10.0
+  '@super-line/core': ^0.10.1
 
 importers:
 
@@ -253,11 +253,11 @@ importers:
         specifier: ^0.8.0
         version: 0.8.0
       '@super-line/core':
-        specifier: ^0.10.0
-        version: 0.10.0
-      '@super-line/server':
         specifier: ^0.10.1
-        version: 0.10.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: 0.10.1
+      '@super-line/server':
+        specifier: ^0.10.2
+        version: 0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/store-memory':
         specifier: ^0.9.0
         version: 0.9.0
@@ -650,11 +650,11 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@super-line/core':
-        specifier: ^0.10.0
-        version: 0.10.0
-      '@super-line/server':
         specifier: ^0.10.1
-        version: 0.10.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        version: 0.10.1
+      '@super-line/server':
+        specifier: ^0.10.2
+        version: 0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/store-memory':
         specifier: ^0.9.0
         version: 0.9.0
@@ -681,8 +681,8 @@ importers:
         version: 4.4.3
     devDependencies:
       '@super-line/core':
-        specifier: ^0.10.0
-        version: 0.10.0
+        specifier: ^0.10.1
+        version: 0.10.1
       vitest:
         specifier: ^4.1.2
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@25.9.4)(vite@7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5))
@@ -702,8 +702,8 @@ importers:
         specifier: ^0.8.0
         version: 0.8.0
       '@super-line/core':
-        specifier: ^0.10.0
-        version: 0.10.0
+        specifier: ^0.10.1
+        version: 0.10.1
       '@super-line/store-memory':
         specifier: ^0.9.0
         version: 0.9.0
@@ -2888,12 +2888,12 @@ packages:
     resolution: {integrity: sha512-C09YUAhyzVmPisSWU+nPPRuW4ffsmSgWEpz/aolLeogXuuPklP0K/0tHsz18F6JnTjErp4ph1FCyHxqE4mIHPg==}
     engines: {node: '>=18'}
 
-  '@super-line/core@0.10.0':
-    resolution: {integrity: sha512-UkSIp1ebTjzsCEUmbVpHh/b/TBLWdBMmCywTMna797TXpKX+u8Qu+NHNowuBSm4mmkMlhDrfPjd4IVv8wSc0PQ==}
+  '@super-line/core@0.10.1':
+    resolution: {integrity: sha512-RKc9HGSZazXMTJPYgCJ4CkAsJU8wghKuKodk0HPcD6ODFFUVQo+rjVrqfh+IwULXOUYq1fc50em43ydorMqshw==}
     engines: {node: '>=18'}
 
-  '@super-line/server@0.10.1':
-    resolution: {integrity: sha512-wkGzWOb08Vg/Hzt5jVqIuBZYburisCcRITYVATNhr/lCi5hSNXgceEhJxyOI/7YIeV+i1mfyPBPMt6xVkUyaBg==}
+  '@super-line/server@0.10.2':
+    resolution: {integrity: sha512-397sOz0r+G16gTV+EuhJkUBgbVIXaZJVhDAAHxYiZqzDGhMr8p56ja7+nrBW83Vb8efx/ZeZ/zRqdowO4VTSKA==}
     engines: {node: '>=18'}
 
   '@super-line/store-memory@0.9.0':
@@ -8162,7 +8162,7 @@ snapshots:
       '@libp2p/tcp': 11.0.22
       '@libp2p/websockets': 10.1.15
       '@multiformats/multiaddr': 13.0.3
-      '@super-line/core': 0.10.0
+      '@super-line/core': 0.10.1
       datastore-fs: 12.0.1
       libp2p: 3.3.4
     transitivePeerDependencies:
@@ -8171,31 +8171,31 @@ snapshots:
 
   '@super-line/client@0.8.0':
     dependencies:
-      '@super-line/core': 0.10.0
+      '@super-line/core': 0.10.1
 
   '@super-line/collections-memory@0.1.0':
     dependencies:
-      '@super-line/core': 0.10.0
+      '@super-line/core': 0.10.1
 
   '@super-line/collections-pglite@0.1.0':
     dependencies:
       '@electric-sql/pglite': 0.5.4
       '@electric-sql/pglite-sync': 0.6.5(@electric-sql/pglite@0.5.4)
-      '@super-line/core': 0.10.0
+      '@super-line/core': 0.10.1
       postgres: 3.4.9
 
   '@super-line/collections-sqlite@0.1.0':
     dependencies:
-      '@super-line/core': 0.10.0
+      '@super-line/core': 0.10.1
       better-sqlite3: 11.10.0
 
-  '@super-line/core@0.10.0':
+  '@super-line/core@0.10.1':
     dependencies:
       '@standard-schema/spec': 1.1.0
 
-  '@super-line/server@0.10.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
+  '@super-line/server@0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@super-line/core': 0.10.0
+      '@super-line/core': 0.10.1
     optionalDependencies:
       '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
     transitivePeerDependencies:
@@ -8213,23 +8213,23 @@ snapshots:
 
   '@super-line/store-memory@0.9.0':
     dependencies:
-      '@super-line/core': 0.10.0
+      '@super-line/core': 0.10.1
 
   '@super-line/store-pglite@0.2.0':
     dependencies:
       '@electric-sql/pglite': 0.5.4
       '@electric-sql/pglite-sync': 0.6.5(@electric-sql/pglite@0.5.4)
-      '@super-line/core': 0.10.0
+      '@super-line/core': 0.10.1
       postgres: 3.4.9
 
   '@super-line/store-sqlite@0.4.0':
     dependencies:
-      '@super-line/core': 0.10.0
+      '@super-line/core': 0.10.1
       better-sqlite3: 11.10.0
 
   '@super-line/transport-websocket@0.6.0':
     dependencies:
-      '@super-line/core': 0.10.0
+      '@super-line/core': 0.10.1
       ws: 8.21.0
     transitivePeerDependencies:
       - bufferutil
