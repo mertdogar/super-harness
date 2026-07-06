@@ -71,7 +71,7 @@ Run the demo: `pnpm -F @super-harness/dev-server start` (needs
 (`apply`). Server and clients must run the same `shared` version — the fold is
 not forward-compatible across event-vocabulary changes.
 
-## Composition (super-line ≥0.9)
+## Composition (super-line ≥0.10)
 
 super-harness is a composable super-line **library**: `shared` exports
 `harnessSurface` (a `defineSurface` fragment; every identifier is
@@ -82,6 +82,6 @@ See `examples/composed-host` for the four host obligations. All
 `@super-line/*` packages are **peer** deps of shared/server/react (one core
 instance across host + library, per the super-line composition guide). The
 published `@super-line/server`/`client`/`store-*` still carry core as a
-REGULAR dependency (`^0.8.0`), so `pnpm-workspace.yaml` carries an
-`overrides: '@super-line/core': ^0.9.0` shim to force one copy — drop it once
+REGULAR dependency (`^0.10.0`), so `pnpm-workspace.yaml` carries an
+`overrides: '@super-line/core': ^0.10.0` shim to force one copy — drop it once
 upstream makes core a true peer.

@@ -14,7 +14,7 @@
     "@mastra/memory": "^1.22.0",
     "@super-harness/core": "workspace:*",
     "@super-harness/server": "workspace:*",
-    "@super-line/transport-websocket": "^0.5.0",
+    "@super-line/transport-websocket": "^0.6.0",
     "zod": "^4.4.3"
   }
 }

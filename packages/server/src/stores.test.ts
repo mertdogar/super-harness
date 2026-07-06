@@ -92,11 +92,50 @@ for (const { name, make } of backends) {
       const { store } = make()
       await store.create('a', 1, {})
       await store.create('b', 2, {})
-      expect((await store.list()).sort()).toEqual(['a', 'b'])
+      expect((await store.list()).map((s) => s.id).sort()).toEqual(['a', 'b'])
       await store.delete('a')
       expect(await store.read('a')).toBeUndefined()
-      expect(await store.list()).toEqual(['b'])
+      expect((await store.list()).map((s) => s.id)).toEqual(['b'])
       await store.delete('missing') // no throw, mirrors store-sqlite
+    })
+
+    it('list(opts) summaries: principalCount, timestamps, filter, sort, paginate', async () => {
+      const { store } = make()
+      const rw = { read: true, write: false }
+      await store.create('alpha', 1, { alice: rw, bob: rw })
+      await store.create('beta', 2, { alice: rw })
+      await store.create('gamma', 3, {})
+
+      const all = await store.list()
+      expect(all.map((s) => s.id)).toEqual(['alpha', 'beta', 'gamma']) // id-ascending default
+      const alpha = all.find((s) => s.id === 'alpha')!
+      expect(alpha.principalCount).toBe(2)
+      expect(all.find((s) => s.id === 'gamma')!.principalCount).toBe(0)
+      expect(alpha.createdAt).toBeGreaterThan(0)
+      expect(alpha.updatedAt).toBeGreaterThanOrEqual(alpha.createdAt)
+
+      // a write bumps updated_at; created_at stays put
+      await store.apply({ id: 'alpha', update: 9, origin: 'x' })
+      const alpha2 = (await store.list()).find((s) => s.id === 'alpha')!
+      expect(alpha2.createdAt).toBe(alpha.createdAt)
+      expect(alpha2.updatedAt).toBeGreaterThanOrEqual(alpha.updatedAt)
+
+      expect((await store.list({ idContains: 'lph' })).map((s) => s.id)).toEqual(['alpha'])
+      expect((await store.list({ principals: ['bob'] })).map((s) => s.id)).toEqual(['alpha'])
+      expect((await store.list({ principals: ['alice'] })).map((s) => s.id)).toEqual(['alpha', 'beta'])
+      expect((await store.list({ sort: { by: 'id', dir: 'desc' } })).map((s) => s.id)).toEqual(['gamma', 'beta', 'alpha'])
+      expect((await store.list({ sort: { by: 'principalCount', dir: 'desc' } }))[0].id).toBe('alpha')
+      expect((await store.list({ limit: 1, offset: 1 })).map((s) => s.id)).toEqual(['beta'])
+    })
+
+    it('searchPrincipals: distinct, substring-filtered, paginated', async () => {
+      const { store } = make()
+      const rw = { read: true, write: false }
+      await store.create('a', 1, { alice: rw, bob: rw })
+      await store.create('b', 2, { alice: rw, carol: rw })
+      expect(await store.searchPrincipals({})).toEqual(['alice', 'bob', 'carol']) // distinct + sorted
+      expect(await store.searchPrincipals({ query: 'a' })).toEqual(['alice', 'carol'])
+      expect(await store.searchPrincipals({ limit: 1, offset: 1 })).toEqual(['bob'])
     })
 
     it('replica set() persists in call order — last write wins', async () => {
