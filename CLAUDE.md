@@ -33,9 +33,14 @@ Run the demo: `pnpm -F @super-harness/dev-server start` (needs
   `client`) + `HarnessProvider`/`useHarness` hooks. No components.
 - `packages/tui` — terminal client (OpenTUI cockpit + headless shell). **Bun
   only** (`bun:ffi`).
+- `examples/plugin-usage` — the getting-started showcase: a host adds the
+  harness with one `plugins: [harness()]` line + `harnessContract()`, driven by a
+  self-contained `diffTree()` streaming terminal client. Start here.
 - `examples/dev-server` — runnable supervisor + worker demo.
 - `examples/composed-host` — the composition reference: a host super-line
   server mounting the harness beside its own surface, one shared client.
+- `examples/auth` — the harness plugin paired with `@super-line/plugin-auth`:
+  real sign-up/sign-in, identity → the collection principal, one socket.
 - `examples/web` — fullstack showcase: Hono backend (`web/server`) + Vite/React/
   shadcn/ai-elements client (`web/client`). See its CLAUDE.md.
 - `examples/plan-board` — todo/task showcase: a scripted planner

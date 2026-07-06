@@ -1,0 +1,25 @@
+{
+  "name": "@super-harness/plugin-usage",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Getting-started showcase: add a full multi-agent harness to your OWN super-line server with one plugin line, then watch it stream in a self-contained terminal client.",
+  "type": "module",
+  "scripts": {
+    "start": "bun --env-file=../../.env src/server.ts",
+    "client": "bun --env-file=../../.env src/client.ts"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.3",
+    "@mastra/core": "1.49.0-alpha.2",
+    "@super-harness/core": "workspace:*",
+    "@super-harness/react": "workspace:*",
+    "@super-harness/server": "workspace:*",
+    "@super-harness/shared": "workspace:*",
+    "@super-line/client": "^0.8.1",
+    "@super-line/collections-memory": "^0.1.0",
+    "@super-line/core": "^0.10.1",
+    "@super-line/server": "^0.10.2",
+    "@super-line/transport-websocket": "^0.6.0",
+    "zod": "^4.4.3"
+  }
+}

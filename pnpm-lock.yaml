@@ -463,6 +463,12 @@ importers:
       '@super-line/collections-memory':
         specifier: ^0.1.0
         version: 0.1.0
+      '@super-line/core':
+        specifier: ^0.10.1
+        version: 0.10.1
+      '@super-line/server':
+        specifier: ^0.10.2
+        version: 0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -479,6 +485,45 @@ importers:
       typescript:
         specifier: ~5.8.3
         version: 5.8.3
+
+  examples/plugin-usage:
+    dependencies:
+      '@ai-sdk/gateway':
+        specifier: ^4.0.3
+        version: 4.0.8(zod@4.4.3)
+      '@mastra/core':
+        specifier: 1.49.0-alpha.2
+        version: 1.49.0-alpha.2(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+      '@super-harness/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@super-harness/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@super-harness/server':
+        specifier: workspace:*
+        version: link:../../packages/server
+      '@super-harness/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@super-line/client':
+        specifier: ^0.8.1
+        version: 0.8.1
+      '@super-line/collections-memory':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@super-line/core':
+        specifier: ^0.10.1
+        version: 0.10.1
+      '@super-line/server':
+        specifier: ^0.10.2
+        version: 0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@super-line/transport-websocket':
+        specifier: ^0.6.0
+        version: 0.6.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
 
   examples/web/client:
     dependencies:
@@ -600,9 +645,15 @@ importers:
       '@super-line/collections-sqlite':
         specifier: ^0.1.0
         version: 0.1.0
+      '@super-line/core':
+        specifier: ^0.10.1
+        version: 0.10.1
       '@super-line/plugin-inspector':
         specifier: ^0.1.0
         version: 0.1.0(@standard-schema/spec@1.1.0)(@super-line/server@0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@super-line/server':
+        specifier: ^0.10.2
+        version: 0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
