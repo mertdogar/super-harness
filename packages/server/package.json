@@ -54,6 +54,9 @@
   },
   "peerDependencies": {
     "@mastra/core": "^1.49.0-alpha.2",
+    "@super-line/collections-memory": "^0.1.0",
+    "@super-line/collections-pglite": "^0.1.0",
+    "@super-line/collections-sqlite": "^0.1.0",
     "@super-line/core": "^0.10.0",
     "@super-line/server": "^0.10.1",
     "@super-line/store-memory": "^0.9.0",
@@ -61,6 +64,7 @@
     "@super-line/store-sqlite": "^0.4.0"
   },
   "peerDependenciesMeta": {
+    "@super-line/collections-pglite": { "optional": true },
     "@super-line/store-pglite": { "optional": true }
   },
   "devDependencies": {
@@ -68,6 +72,9 @@
     "@libsql/client": "^0.17.4",
     "@mastra/core": "1.49.0-alpha.2",
     "@super-line/client": "^0.8.0",
+    "@super-line/collections-memory": "^0.1.0",
+    "@super-line/collections-pglite": "^0.1.0",
+    "@super-line/collections-sqlite": "^0.1.0",
     "@super-line/core": "^0.10.0",
     "@super-line/server": "^0.10.1",
     "@super-line/store-memory": "^0.9.0",

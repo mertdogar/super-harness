@@ -640,6 +640,15 @@ importers:
       '@super-line/client':
         specifier: ^0.8.0
         version: 0.8.0
+      '@super-line/collections-memory':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@super-line/collections-pglite':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@super-line/collections-sqlite':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@super-line/core':
         specifier: ^0.10.0
         version: 0.10.0
@@ -2865,6 +2874,18 @@ packages:
 
   '@super-line/client@0.8.0':
     resolution: {integrity: sha512-XusCU8QSjRq2aRNwOqppxBWWhwkjitqmMGG0UhOICa67EJVunNgSkGKly9S1Vx43JfaDFDOM8HkGz3BCRGpfng==}
+    engines: {node: '>=18'}
+
+  '@super-line/collections-memory@0.1.0':
+    resolution: {integrity: sha512-Jo1mzFJOuWTHzYw1FEcNQ1LKANg52vsxoCndz6sfJ0FuTQnMlkbQNkOmoden2myZRhdlb8YjxOc/q4KNJsI76g==}
+    engines: {node: '>=18'}
+
+  '@super-line/collections-pglite@0.1.0':
+    resolution: {integrity: sha512-fmBkuHQnIxC6sqws6ZKAzuIF1aBVP/MOmTVy4xHh7Gkn+Nq+M3uG7uvy5n5biVAKsrIR99/uCeYaErU9W4EdTQ==}
+    engines: {node: '>=18'}
+
+  '@super-line/collections-sqlite@0.1.0':
+    resolution: {integrity: sha512-C09YUAhyzVmPisSWU+nPPRuW4ffsmSgWEpz/aolLeogXuuPklP0K/0tHsz18F6JnTjErp4ph1FCyHxqE4mIHPg==}
     engines: {node: '>=18'}
 
   '@super-line/core@0.10.0':
@@ -8151,6 +8172,22 @@ snapshots:
   '@super-line/client@0.8.0':
     dependencies:
       '@super-line/core': 0.10.0
+
+  '@super-line/collections-memory@0.1.0':
+    dependencies:
+      '@super-line/core': 0.10.0
+
+  '@super-line/collections-pglite@0.1.0':
+    dependencies:
+      '@electric-sql/pglite': 0.5.4
+      '@electric-sql/pglite-sync': 0.6.5(@electric-sql/pglite@0.5.4)
+      '@super-line/core': 0.10.0
+      postgres: 3.4.9
+
+  '@super-line/collections-sqlite@0.1.0':
+    dependencies:
+      '@super-line/core': 0.10.0
+      better-sqlite3: 11.10.0
 
   '@super-line/core@0.10.0':
     dependencies:
