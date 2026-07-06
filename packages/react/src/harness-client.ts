@@ -1,50 +1,53 @@
 // Framework-free wire layer: ONE super-line client driving one active thread.
 // Modeled on packages/tui/src/session.ts — join first, then subscribeTree; the
-// durable Store rebuilds the whole transcript on refresh/late-join. React
+// durable COLLECTIONS rebuild the whole transcript on refresh/late-join. React
 // binds via useSyncExternalStore in react.ts; non-React consumers can use this
 // class directly (subpath export `@super-harness/react/client`).
 //
 // Two ways in: give a `url` and this layer owns its own socket (standalone
 // serve()), or give the host app's existing `client` (composition — a host
-// contract that merges harnessSurface) and this layer borrows it: listeners
+// contract that merges harnessContract()) and this layer borrows it: listeners
 // are attached on connect() and detached on close(), the socket is never
 // closed here.
-import { createSuperLineClient, type SuperLineClientOptions } from "@super-line/client"
+import { createSuperLineClient } from "@super-line/client"
 import { webSocketClientTransport } from "@super-line/transport-websocket"
-import { memoryStoreClient } from "@super-line/store-memory"
 import {
   contract,
   emptyTree,
-  HARNESS_NODE_STORE,
-  HARNESS_THREAD_STORE,
   subscribeTree,
   type ApprovalDecision,
   type ApprovalRequired,
   type ClientTree,
-  type Contract,
   type ModeInfo,
   type NodeState,
   type Suspended,
   type ThreadInfo,
+  type ThreadRow,
 } from "@super-harness/shared"
 
-// ClientStore lives in @super-line/core; derive the map type instead of adding a dep.
-type StoreClients = NonNullable<SuperLineClientOptions<Contract, "user">["stores"]>
-
-// The server-pushed events the harness layer listens for, by payload.
+// The server-pushed events the harness layer listens for, by payload. Thread-list
+// reactivity is NOT here — it rides the harness.threads collection subscription.
 export interface HarnessWireEvents {
   "harness.suspended": Suspended
   "harness.approvalRequired": ApprovalRequired
   "harness.modeChanged": { threadId: string; modeId: string; previousModeId: string }
   "harness.followUpQueued": { threadId: string; count: number }
-  "harness.threadCreated": ThreadInfo
-  "harness.threadRenamed": { threadId: string; title: string }
-  "harness.threadDeleted": { threadId: string }
 }
 
-// Structural view of the super-line client surface this layer drives — a
-// client built against ANY host contract that merges harnessSurface fits,
-// without importing that contract here.
+// A live row-set over a contract collection (the subset subscribeTree/thread-list use).
+export interface WireRowSet {
+  rows(): unknown[]
+  subscribe(cb: (ev?: { type: string; id: string }) => void): () => void
+  readonly ready: Promise<void>
+}
+export interface WireCollection {
+  subscribe(query?: unknown): WireRowSet
+}
+
+// Structural view of the super-line client surface this layer drives — a client
+// built against ANY host contract that merges harnessContract() fits, without
+// importing that contract here. `collection`/`on` are concrete (not generic) so
+// assignability from real merged-contract clients holds.
 export interface HarnessWire {
   "harness.join"(input: { threadId: string }): Promise<{ ok: boolean }>
   "harness.sendMessage"(input: { threadId: string; message: string }): Promise<{ ok: boolean }>
@@ -61,26 +64,13 @@ export interface HarnessWire {
   "harness.listThreads"(input: { resourceId?: string }): Promise<{ threads: ThreadInfo[] }>
   "harness.createThread"(input: { threadId?: string; resourceId?: string; title?: string }): Promise<{ threadId: string }>
   "harness.deleteThread"(input: { threadId: string }): Promise<{ ok: boolean }>
-  // Concrete overloads (not a generic) — a generic-to-generic comparison with
-  // the real client's `on` fails higher-order inference; per-overload
-  // instantiation matches cleanly.
   on(event: "harness.suspended", handler: (data: HarnessWireEvents["harness.suspended"]) => void): () => void
   on(event: "harness.approvalRequired", handler: (data: HarnessWireEvents["harness.approvalRequired"]) => void): () => void
   on(event: "harness.modeChanged", handler: (data: HarnessWireEvents["harness.modeChanged"]) => void): () => void
   on(event: "harness.followUpQueued", handler: (data: HarnessWireEvents["harness.followUpQueued"]) => void): () => void
-  on(event: "harness.threadCreated", handler: (data: HarnessWireEvents["harness.threadCreated"]) => void): () => void
-  on(event: "harness.threadRenamed", handler: (data: HarnessWireEvents["harness.threadRenamed"]) => void): () => void
-  on(event: "harness.threadDeleted", handler: (data: HarnessWireEvents["harness.threadDeleted"]) => void): () => void
-  store(name: string): { open(id: string): { getSnapshot(): unknown; subscribe(cb: () => void): () => void; close(): void } }
+  collection(name: string): WireCollection
   close(): void
   readonly connected: boolean
-}
-
-// The harness Store namespaces as client replicas — spread into a host
-// client's `stores` config next to its own:
-//   createSuperLineClient(hostContract, { stores: { ...harnessClientStores(), ...own } })
-export function harnessClientStores(): StoreClients {
-  return { [HARNESS_NODE_STORE]: memoryStoreClient(), [HARNESS_THREAD_STORE]: memoryStoreClient() } as StoreClients
 }
 
 export interface PendingAsk {
@@ -119,13 +109,11 @@ export interface HarnessClientConfig {
   threadId: string
   /** WebSocket URL of a standalone harness server (owned mode: connect() builds a fresh client, close() closes it). */
   url?: string
-  /** Handshake params (the default server authenticate reads `userId`). Owned mode only. */
+  /** Handshake params (the default server authenticate reads `userId`/`resourceId`). Owned mode only. */
   params?: Record<string, string>
-  /** Store clients for the `harness.node`/`harness.thread` namespaces (default: in-memory). Owned mode only. */
-  stores?: StoreClients
   /**
    * Composition: the host app's existing super-line client, built against a
-   * contract that merges harnessSurface. A live INSTANCE is borrowed — close()
+   * contract that merges harnessContract(). A live INSTANCE is borrowed — close()
    * detaches the harness listeners but never closes the host's socket. A
    * FACTORY is owned like the url path (called once per connect(), closed on
    * close()) — the seam tests use to construct a fresh fake per connect.
@@ -164,6 +152,17 @@ function findTool(tree: ClientTree, toolCallId: string) {
   return undefined
 }
 
+// A thread row → the sidebar shape. Sorted newest-updated first by the caller.
+function toThreadInfo(row: ThreadRow): ThreadInfo {
+  return {
+    id: row.id,
+    resourceId: row.resourceId ?? row.id,
+    title: row.title,
+    createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : undefined,
+    updatedAt: row.updatedAt ? new Date(row.updatedAt).toISOString() : undefined,
+  }
+}
+
 // Refresh mid-suspension: the `suspended` room event is ephemeral, but the
 // parked ask_user call is visible in the tree — root-only, input-available,
 // no result yet. Only the LAST turn root counts: turns are serialized, so an
@@ -174,6 +173,7 @@ function inferAsk(root: NodeState | undefined): PendingAsk | null {
   if (root?.status !== "running") return null
   for (const tid of root.toolOrder) {
     const t = root.tools[tid]
+    if (!t) continue // tool row may lag the node row's toolOrder
     if (t.toolName === "ask_user" && t.status === "input-available") {
       return { toolCallId: tid, toolName: t.toolName, request: t.args }
     }
@@ -197,6 +197,7 @@ export class HarnessClient {
   #unsubs: Array<() => void> = []
   #listeners = new Set<() => void>()
   #unsubTree: (() => void) | null = null
+  #unsubThreads: (() => void) | null = null
   #poll: ReturnType<typeof setInterval> | null = null
   #state: HarnessState
 
@@ -239,7 +240,6 @@ export class HarnessClient {
       transport: webSocketClientTransport({ url: this.#config.url }),
       role: "user",
       params: this.#config.params,
-      stores: this.#config.stores ?? harnessClientStores(),
     }) as unknown as HarnessWire
   }
 
@@ -251,8 +251,6 @@ export class HarnessClient {
     if (this.#client) return
     const epoch = this.#epoch
     const client = this.#build()
-    // A live instance is the host's (borrowed); anything constructed here —
-    // via url or the factory seam — is this layer's to close.
     this.#owned = typeof this.#config.client !== "object"
     this.#client = client
 
@@ -276,45 +274,15 @@ export class HarnessClient {
         if (p.threadId !== this.#state.threadId) return
         this.#set({ queued: p.count })
       }),
-      // Thread-list events carry NO active-thread guard: they broadcast to the
-      // resource room, so they concern the sidebar regardless of which thread
-      // this tab is viewing.
-      client.on("harness.threadCreated", (t) => {
-        if (this.#state.threads.some((x) => x.id === t.id)) return // our own create echoes back
-        this.#set({ threads: [t, ...this.#state.threads] })
-      }),
-      client.on("harness.threadRenamed", (p) => {
-        const known = this.#state.threads.some((t) => t.id === p.threadId)
-        if (!known) return void this.refreshThreads()
-        this.#set({ threads: this.#state.threads.map((t) => (t.id === p.threadId ? { ...t, title: p.title } : t)) })
-      }),
-      client.on("harness.threadDeleted", (p) => {
-        const threads = this.#state.threads.filter((t) => t.id !== p.threadId)
-        if (p.threadId !== this.#state.threadId) return this.#set({ threads })
-        // Our OWN active thread was deleted elsewhere — settle into the deleted
-        // state (per grill decision (c)): drop the subscription, blank the tree,
-        // let the user pick or create a thread.
-        this.#unsubTree?.()
-        this.#unsubTree = null
-        this.#set({
-          threads,
-          tree: emptyTree(),
-          busy: false,
-          pendingAsk: null,
-          pendingApproval: null,
-          queued: 0,
-          activeThreadDeleted: true,
-        })
-      }),
     ]
 
     try {
       await client["harness.join"]({ threadId: this.#state.threadId })
       if (this.#epoch !== epoch) return // closed mid-connect (StrictMode unmount)
       this.#subscribeTree()
+      this.#subscribeThreads()
       this.#set({ connected: client.connected })
       void this.refreshModes()
-      void this.refreshThreads()
     } catch (error) {
       // Leave connected=false — the poll below sees the transition once the
       // socket is up and retries the whole join+subscribe path.
@@ -327,7 +295,43 @@ export class HarnessClient {
   #subscribeTree(): void {
     this.#unsubTree?.()
     if (!this.#client) return
-    this.#unsubTree = subscribeTree(this.#client, this.#state.threadId, (tree) => this.#onTree(tree))
+    this.#unsubTree = subscribeTree(this.#client as never, this.#state.threadId, (tree) => this.#onTree(tree))
+  }
+
+  // The sidebar rides the harness.threads collection: rows ARE the list, deltas
+  // are the reactivity. A delete of the ACTIVE thread flips activeThreadDeleted.
+  #subscribeThreads(): void {
+    this.#unsubThreads?.()
+    if (!this.#client) return
+    const sub = this.#client.collection("harness.threads").subscribe()
+    const push = () => this.#onThreads(sub.rows() as ThreadRow[])
+    this.#unsubThreads = sub.subscribe(push)
+    void sub.ready.then(push).catch(() => {})
+  }
+
+  #onThreads(rows: ThreadRow[]): void {
+    const threads = rows.map(toThreadInfo).sort((a, b) => (b.updatedAt ?? "").localeCompare(a.updatedAt ?? ""))
+    const active = this.#state.threadId
+    const activeGone = !threads.some((t) => t.id === active)
+    const wasPresent = this.#state.threads.some((t) => t.id === active)
+    // Our OWN active thread vanished from the resource (deleted elsewhere) —
+    // settle into limbo: drop the subscription, blank the tree, let the user
+    // pick or create a thread.
+    if (activeGone && wasPresent && !this.#state.activeThreadDeleted) {
+      this.#unsubTree?.()
+      this.#unsubTree = null
+      this.#set({
+        threads,
+        tree: emptyTree(),
+        busy: false,
+        pendingAsk: null,
+        pendingApproval: null,
+        queued: 0,
+        activeThreadDeleted: true,
+      })
+      return
+    }
+    this.#set({ threads })
   }
 
   #onTree(tree: ClientTree): void {
@@ -346,30 +350,28 @@ export class HarnessClient {
     // A parked ask_user keeps the root 'running' in the tree, but the server is
     // idle waiting on the user — that's not busy.
     const busy = rootRunning && !pendingAsk
-    const wasBusy = this.#state.busy
     this.#set({ tree, busy, pendingAsk, pendingApproval, queued: busy ? this.#state.queued : 0 })
-    // A settled turn may have created/renamed the Mastra thread — refresh the list.
-    if (wasBusy && !busy) void this.refreshThreads()
   }
 
   #startPoll(): void {
     // ponytail: 1s poll — super-line exposes `connected` but no connect/
     // disconnect event. On recovery re-join (server drops session + room).
-    // Borrowed mode keeps the poll: rooms are per-connection, so after the
-    // HOST's transport reconnects someone must re-join + re-subscribe, and
-    // only this layer knows its rooms. The poll never touches the socket.
+    // Borrowed mode keeps the poll: rooms are per-connection and only this layer
+    // knows its rooms; the poll never touches the socket.
     if (this.#poll) clearInterval(this.#poll)
     const epoch = this.#epoch
     this.#poll = setInterval(() => {
       const now = this.#client?.connected ?? false
       if (now === this.#state.connected) return
-      // Don't re-join in the activeThreadDeleted limbo — the server's join
-      // pre-create would resurrect an empty doc for the purged thread.
+      // Don't re-join in the activeThreadDeleted limbo.
       if (now && !this.#state.activeThreadDeleted) {
         void this.#client
           ?.["harness.join"]({ threadId: this.#state.threadId })
           .then(() => {
-            if (this.#epoch === epoch) this.#subscribeTree()
+            if (this.#epoch === epoch) {
+              this.#subscribeTree()
+              this.#subscribeThreads()
+            }
           })
           .catch((error) => {
             if (this.#epoch === epoch) this.#set({ notice: errMessage(error) })
@@ -406,8 +408,6 @@ export class HarnessClient {
         toolCallId: pending.toolCallId,
         resumeData,
       })
-      // ok:false = the harness rejected the resume (e.g. a queued follow-up is
-      // mid-turn) — keep the prompt so the answer isn't silently lost.
       if (res.ok) this.#set({ pendingAsk: null, notice: null })
       else this.#set({ notice: "reply was rejected by the server — dismiss the prompt or retry once the thread settles" })
     } catch (error) {
@@ -432,8 +432,7 @@ export class HarnessClient {
     }
   }
 
-  // Local-only escape hatch: drop a pending ask the server no longer knows
-  // about (e.g. it restarted while the suspension was parked).
+  // Local-only escape hatch: drop a pending ask the server no longer knows about.
   dismissAsk(): void {
     this.#set({ pendingAsk: null, notice: null })
   }
@@ -442,8 +441,6 @@ export class HarnessClient {
     if (!this.#client) return
     try {
       await this.#client["harness.abort"]({ threadId: this.#state.threadId })
-      // The server cleared suspensions and declined gates — mirror it locally
-      // (tui parity); the tree write for a parked node may lag or not come.
       this.#set({ busy: false, pendingAsk: null, pendingApproval: null, queued: 0 })
     } catch (error) {
       this.#set({ notice: errMessage(error) })
@@ -460,9 +457,6 @@ export class HarnessClient {
     }
   }
 
-  // Both refreshers are invoked fire-and-forget (`void this.refresh…`) — they
-  // must never reject, or a dropped socket at refresh time becomes an
-  // unhandled rejection.
   async refreshModes(): Promise<void> {
     if (!this.#client) return
     try {
@@ -473,20 +467,10 @@ export class HarnessClient {
     }
   }
 
-  async refreshThreads(): Promise<void> {
-    if (!this.#client) return
-    try {
-      const { threads } = await this.#client["harness.listThreads"]({})
-      this.#set({ threads })
-    } catch (error) {
-      this.#set({ notice: errMessage(error) })
-    }
-  }
-
   async switchThread(threadId: string): Promise<void> {
     if (!this.#client || threadId === this.#state.threadId) return
     const epoch = this.#epoch
-    // Detach the OLD thread's subscription before touching state — its
+    // Detach the OLD thread's tree subscription before touching state — its
     // callbacks must not repopulate tree/pendings under the new threadId.
     this.#unsubTree?.()
     this.#unsubTree = null
@@ -515,7 +499,6 @@ export class HarnessClient {
     try {
       const { threadId } = await this.#client["harness.createThread"]({})
       await this.switchThread(threadId)
-      void this.refreshThreads()
       return threadId
     } catch (error) {
       this.#set({ notice: errMessage(error) })
@@ -527,8 +510,9 @@ export class HarnessClient {
     if (!this.#client) return
     try {
       await this.#client["harness.deleteThread"]({ threadId })
+      // The sidebar updates itself from the collection delete; if we deleted the
+      // ACTIVE thread, hop to a fresh one.
       if (threadId === this.#state.threadId) await this.newThread()
-      else void this.refreshThreads()
     } catch (error) {
       this.#set({ notice: errMessage(error) })
     }
@@ -540,6 +524,8 @@ export class HarnessClient {
     this.#poll = null
     this.#unsubTree?.()
     this.#unsubTree = null
+    this.#unsubThreads?.()
+    this.#unsubThreads = null
     for (const off of this.#unsubs.splice(0)) off()
     // Borrowed clients belong to the host — only close what this layer built.
     if (this.#owned) this.#client?.close()

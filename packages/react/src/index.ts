@@ -1,6 +1,5 @@
 export {
   createHarnessClient,
-  harnessClientStores,
   HarnessClient,
   type HarnessClientConfig,
   type HarnessState,

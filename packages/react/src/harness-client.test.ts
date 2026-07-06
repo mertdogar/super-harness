@@ -1,48 +1,29 @@
 import { afterEach, describe, expect, it, vi } from "vitest"
-import type { NodeState, ThreadDoc } from "@super-harness/shared"
+import type { NodeRow, NodeState, ThreadRow, ToolRow } from "@super-harness/shared"
 import { createHarnessClient, type HarnessClient, type HarnessClientConfig } from "./harness-client"
 
 // ── fake wire ─────────────────────────────────────────────────────────────────
 // Structural stand-in for the super-line client: request methods, room-event
-// handlers, and Store handles that subscribeTree drives.
-
-class FakeHandle {
-  #data: unknown = undefined
-  #subs = new Set<() => void>()
-  closed = false
-  getSnapshot = () => this.#data
-  subscribe = (cb: () => void) => {
-    this.#subs.add(cb)
-    return () => this.#subs.delete(cb)
-  }
-  close = () => {
-    this.closed = true
-    this.#subs.clear()
-  }
-  write(data: unknown) {
-    this.#data = data
-    for (const cb of this.#subs) cb()
-  }
-}
+// handlers (on/emit), and contract COLLECTIONS (collection().subscribe()) that
+// subscribeTree + the sidebar drive. Rows are pushed via putRow/delRow.
 
 function fakeWire(overrides: Record<string, unknown> = {}) {
-  const handles = new Map<string, FakeHandle>()
-  // Set per event, like the real client: two attachments coexist, and an
-  // unsubscribe removes only its own handler (a name-keyed Map would let a
-  // stale unsub delete a successor registration and hide duplicates).
+  const cols = new Map<string, Map<string, { id: string }>>()
+  const colSubs = new Map<string, Set<(ev?: { type: string; id: string }) => void>>()
   const handlers = new Map<string, Set<(p: unknown) => void>>()
   const calls: Record<string, number> = {}
   const count = (name: string) => {
     calls[name] = (calls[name] ?? 0) + 1
   }
-  const handle = (ns: string, id: string): FakeHandle => {
-    const key = `${ns}:${id}`
-    let h = handles.get(key)
-    if (!h || h.closed) {
-      h = new FakeHandle()
-      handles.set(key, h)
-    }
-    return h
+  const colMap = (n: string) => cols.get(n) ?? (cols.set(n, new Map()), cols.get(n)!)
+  const notify = (n: string, ev: { type: string; id: string }) => {
+    for (const cb of colSubs.get(n) ?? []) cb(ev)
+  }
+  // Interpret only a single `eq` filter — all subscribeTree/sidebar queries use one.
+  const applyFilter = (rows: { id: string }[], query: unknown) => {
+    const f = (query as { filter?: { op: string; field: string; value: unknown } })?.filter
+    if (!f || f.op !== "eq") return rows
+    return rows.filter((r) => (r as Record<string, unknown>)[f.field] === f.value)
   }
   const wire = {
     connected: true,
@@ -56,59 +37,99 @@ function fakeWire(overrides: Record<string, unknown> = {}) {
     "harness.listThreads": async () => (count("listThreads"), { threads: [] }),
     "harness.createThread": async () => (count("createThread"), { threadId: "fresh-thread" }),
     "harness.deleteThread": async () => (count("deleteThread"), { ok: true }),
-    "harness.renameThread": async () => (count("renameThread"), { ok: true }),
     on: (name: string, cb: (p: unknown) => void) => {
       let set = handlers.get(name)
       if (!set) handlers.set(name, (set = new Set()))
       set.add(cb)
       return () => set.delete(cb)
     },
-    // Real client close() is terminal — mirror that so identity/abandon
-    // guards are actually exercised, not vacuously satisfied.
+    collection: (n: string) => ({
+      subscribe: (query?: unknown) => ({
+        rows: () => applyFilter([...colMap(n).values()], query),
+        subscribe: (cb: (ev?: { type: string; id: string }) => void) => {
+          let set = colSubs.get(n)
+          if (!set) colSubs.set(n, (set = new Set()))
+          set.add(cb)
+          return () => set!.delete(cb)
+        },
+        ready: Promise.resolve(),
+      }),
+    }),
     close: () => {
       wire.connected = false
       handlers.clear()
+      colSubs.clear()
     },
-    store: (ns: string) => ({ open: (id: string) => handle(ns, id) }),
     ...overrides,
   }
   return {
     wire: wire as unknown as WireInstance,
     raw: wire,
-    handle,
     calls,
     emit: (name: string, p: unknown) => {
       for (const cb of handlers.get(name) ?? []) cb(p)
+    },
+    putRow: (n: string, row: { id: string }) => {
+      colMap(n).set(row.id, row)
+      notify(n, { type: "update", id: row.id })
+    },
+    delRow: (n: string, id: string) => {
+      colMap(n).delete(id)
+      notify(n, { type: "delete", id })
     },
   }
 }
 
 type WireInstance = Exclude<NonNullable<HarnessClientConfig["client"]>, (...args: never) => unknown>
-
-function node(partial: Partial<NodeState> & { nodeId: string }): NodeState {
-  return {
-    parentNodeId: null,
-    depth: 0,
-    status: "running",
-    reasoning: "",
-    text: "",
-    toolOrder: [],
-    tools: {},
-    childOrder: [],
-    ...partial,
-  }
-}
-
 type Fake = ReturnType<typeof fakeWire>
 
-// Write the thread skeleton + node docs the way the server's projector would.
+function node(partial: Partial<NodeState> & { nodeId: string }): NodeState {
+  return { parentNodeId: null, depth: 0, status: "running", reasoning: "", text: "", toolOrder: [], tools: {}, childOrder: [], ...partial }
+}
+
+function threadRow(id: string, turns: string[], extra: Partial<ThreadRow> = {}): ThreadRow {
+  return { id, resourceId: id, turns, todos: [], createdAt: 1, updatedAt: 1, ...extra }
+}
+
+// Write the thread row + node rows + tool rows the way the server's writer would.
 function writeTree(f: Fake, threadId: string, turns: string[], nodes: Record<string, NodeState>) {
-  const skeleton: ThreadDoc = { turns, nodes: {} }
+  f.putRow("harness.threads", threadRow(threadId, turns))
   for (const [id, n] of Object.entries(nodes)) {
-    skeleton.nodes[id] = { parentNodeId: n.parentNodeId, depth: n.depth, agentType: n.agentType, childOrder: n.childOrder }
+    const nr: NodeRow = {
+      id,
+      threadId,
+      parentNodeId: n.parentNodeId,
+      depth: n.depth,
+      agentType: n.agentType,
+      task: n.task,
+      status: n.status,
+      reasoning: n.reasoning,
+      text: n.text,
+      toolOrder: n.toolOrder,
+      childOrder: n.childOrder,
+      usage: n.usage,
+      durationMs: n.durationMs,
+      error: n.error,
+      textOffset: n.textOffset,
+    }
+    f.putRow("harness.nodes", nr)
+    for (const tid of n.toolOrder) {
+      const t = n.tools[tid]
+      const tr: ToolRow = {
+        id: t.toolCallId,
+        threadId,
+        nodeId: id,
+        toolName: t.toolName,
+        status: t.status,
+        argsText: t.argsText,
+        args: t.args,
+        result: t.result,
+        isError: t.isError,
+        textOffset: t.textOffset,
+      }
+      f.putRow("harness.tools", tr)
+    }
   }
-  f.handle("harness.thread", threadId).write(skeleton)
-  for (const [id, n] of Object.entries(nodes)) f.handle("harness.node", id).write(n)
 }
 
 const clients: HarnessClient[] = []
@@ -124,43 +145,27 @@ async function setup(overrides: Record<string, unknown> = {}) {
   return { f, client }
 }
 
-const ASK = {
-  toolCallId: "a1",
-  toolName: "ask_user",
-  status: "input-available" as const,
-  argsText: "",
-  args: { question: "which city?" },
-}
+const ASK = { toolCallId: "a1", toolName: "ask_user", status: "input-available" as const, argsText: "", args: { question: "which city?" } }
 
 describe("HarnessClient state machine", () => {
-  it("derives busy from the last root and refreshes threads when a turn settles", async () => {
+  it("derives busy from the last root", async () => {
     const { f, client } = await setup()
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "working" }) })
     expect(client.getSnapshot().busy).toBe(true)
 
-    const before = f.calls.listThreads ?? 0
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "done", status: "complete" }) })
     expect(client.getSnapshot().busy).toBe(false)
-    expect(f.calls.listThreads).toBe(before + 1) // settle → thread list refresh
   })
 
   it("infers a pending ask from the tree (refresh mid-suspension) and reads it as not-busy", async () => {
     const { f, client } = await setup()
-    writeTree(f, "t1", ["r1"], {
-      r1: node({ nodeId: "r1", toolOrder: ["a1"], tools: { a1: { ...ASK } } }),
-    })
+    writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", toolOrder: ["a1"], tools: { a1: { ...ASK } } }) })
     const s = client.getSnapshot()
     expect(s.pendingAsk).toMatchObject({ toolCallId: "a1", request: { question: "which city?" } })
-    expect(s.busy).toBe(false) // parked server-side, not busy
+    expect(s.busy).toBe(false)
 
-    // resume happened elsewhere: the ask settles, the turn completes
     writeTree(f, "t1", ["r1"], {
-      r1: node({
-        nodeId: "r1",
-        status: "complete",
-        toolOrder: ["a1"],
-        tools: { a1: { ...ASK, status: "output-available", result: "Izmir" } },
-      }),
+      r1: node({ nodeId: "r1", status: "complete", toolOrder: ["a1"], tools: { a1: { ...ASK, status: "output-available", result: "Izmir" } } }),
     })
     expect(client.getSnapshot().pendingAsk).toBeNull()
   })
@@ -168,7 +173,7 @@ describe("HarnessClient state machine", () => {
   it("ignores a stale still-running earlier root — only the LAST turn can ask", async () => {
     const { f, client } = await setup()
     writeTree(f, "t1", ["r1", "r2"], {
-      r1: node({ nodeId: "r1", toolOrder: ["a1"], tools: { a1: { ...ASK } } }), // stale, pre-abort-fix data
+      r1: node({ nodeId: "r1", toolOrder: ["a1"], tools: { a1: { ...ASK } } }),
       r2: node({ nodeId: "r2", text: "new turn" }),
     })
     const s = client.getSnapshot()
@@ -183,7 +188,7 @@ describe("HarnessClient state machine", () => {
     expect(client.getSnapshot().pendingAsk).not.toBeNull()
 
     await client.reply("Izmir")
-    expect(client.getSnapshot().pendingAsk).not.toBeNull() // answer not silently lost
+    expect(client.getSnapshot().pendingAsk).not.toBeNull()
     expect(client.getSnapshot().notice).toContain("rejected")
 
     ok.value = true
@@ -206,7 +211,7 @@ describe("HarnessClient state machine", () => {
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "running" }) })
     f.emit("harness.approvalRequired", { threadId: "t1", nodeId: "r1", toolCallId: "g1", toolName: "send_report", args: {} })
     f.emit("harness.followUpQueued", { threadId: "t1", count: 2 })
-    expect(client.getSnapshot().busy).toBe(true) // genuinely busy before abort
+    expect(client.getSnapshot().busy).toBe(true)
     expect(client.getSnapshot().pendingApproval).not.toBeNull()
 
     await client.abort()
@@ -220,22 +225,13 @@ describe("HarnessClient state machine", () => {
   it("pendingApproval lifecycle: parked by the event, cleared when the tree settles the tool", async () => {
     const { f, client } = await setup()
     writeTree(f, "t1", ["r1"], {
-      r1: node({
-        nodeId: "r1",
-        toolOrder: ["g1"],
-        tools: { g1: { toolCallId: "g1", toolName: "send_report", status: "input-available", argsText: "", args: {} } },
-      }),
+      r1: node({ nodeId: "r1", toolOrder: ["g1"], tools: { g1: { toolCallId: "g1", toolName: "send_report", status: "input-available", argsText: "", args: {} } } }),
     })
     f.emit("harness.approvalRequired", { threadId: "t1", nodeId: "r1", toolCallId: "g1", toolName: "send_report", args: {} })
     expect(client.getSnapshot().pendingApproval).toMatchObject({ toolCallId: "g1" })
 
-    // approval resolved elsewhere → the tool executes and settles in the tree
     writeTree(f, "t1", ["r1"], {
-      r1: node({
-        nodeId: "r1",
-        toolOrder: ["g1"],
-        tools: { g1: { toolCallId: "g1", toolName: "send_report", status: "output-available", argsText: "", result: { delivered: true } } },
-      }),
+      r1: node({ nodeId: "r1", status: "complete", toolOrder: ["g1"], tools: { g1: { toolCallId: "g1", toolName: "send_report", status: "output-available", argsText: "", result: { delivered: true } } } }),
     })
     expect(client.getSnapshot().pendingApproval).toBeNull()
   })
@@ -255,87 +251,54 @@ describe("HarnessClient state machine", () => {
     expect(client.getSnapshot().modeId).toBeNull()
   })
 
-  it("threadRenamed patches the matching sidebar entry in place, even for a background thread", async () => {
-    // Unlike suspended/modeChanged above, threadRenamed has NO active-thread
-    // filter — a title can change on a thread the user isn't currently viewing.
-    const { f, client } = await setup({
-      "harness.listThreads": async () => ({ threads: [{ id: "t1", resourceId: "t1" }, { id: "other", resourceId: "other" }] }),
-    })
-    await client.refreshThreads()
-
-    f.emit("harness.threadRenamed", { threadId: "other", title: "New Title" })
-
-    expect(client.getSnapshot().threads).toEqual([
-      { id: "t1", resourceId: "t1" },
-      { id: "other", resourceId: "other", title: "New Title" },
-    ])
-  })
-
-  it("threadRenamed for a thread not yet in the sidebar falls back to a full refresh", async () => {
-    // Override, so track calls locally — an overridden listThreads bypasses
-    // fakeWire's own f.calls counter.
-    let listCalls = 0
-    const { f, client } = await setup({
-      "harness.listThreads": async () => (listCalls++, { threads: [{ id: "t1", resourceId: "t1" }] }),
-    })
-    await client.refreshThreads()
-    const before = listCalls
-
-    f.emit("harness.threadRenamed", { threadId: "unseen", title: "New" })
-    await new Promise((r) => setTimeout(r, 0))
-
-    expect(listCalls).toBe(before + 1)
-  })
-
-  it("threadCreated inserts into the sidebar and dedups its own echo", async () => {
-    const { f, client } = await setup({
-      "harness.listThreads": async () => ({ threads: [{ id: "t1", resourceId: "web" }] }),
-    })
-    await client.refreshThreads()
-
-    f.emit("harness.threadCreated", { id: "t2", resourceId: "web", title: "Trip" })
+  it("the sidebar reflects the harness.threads collection, newest-updated first", async () => {
+    const { f, client } = await setup()
+    f.putRow("harness.threads", threadRow("t1", [], { updatedAt: 1 }))
+    f.putRow("harness.threads", threadRow("t2", [], { updatedAt: 2, title: "Trip" }))
     expect(client.getSnapshot().threads.map((t) => t.id)).toEqual(["t2", "t1"])
-
-    // Our own create echoes back — must not double-insert.
-    f.emit("harness.threadCreated", { id: "t2", resourceId: "web", title: "Trip" })
-    expect(client.getSnapshot().threads.filter((t) => t.id === "t2")).toHaveLength(1)
+    expect(client.getSnapshot().threads.find((t) => t.id === "t2")?.title).toBe("Trip")
   })
 
-  it("threadDeleted removes a background thread without touching the active view", async () => {
-    const { f, client } = await setup({
-      "harness.listThreads": async () => ({ threads: [{ id: "t1", resourceId: "web" }, { id: "other", resourceId: "web" }] }),
-    })
-    await client.refreshThreads()
+  it("a title update on a thread row patches the sidebar in place", async () => {
+    const { f, client } = await setup()
+    f.putRow("harness.threads", threadRow("t1", [], { updatedAt: 1 }))
+    f.putRow("harness.threads", threadRow("other", [], { updatedAt: 2 }))
+    f.putRow("harness.threads", threadRow("other", [], { updatedAt: 3, title: "New Title" }))
+    expect(client.getSnapshot().threads.map((t) => t.id)).toEqual(["other", "t1"])
+    expect(client.getSnapshot().threads.find((t) => t.id === "other")?.title).toBe("New Title")
+  })
+
+  it("deleting a background thread drops it; the active view is untouched", async () => {
+    const { f, client } = await setup()
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "hi", status: "complete" }) })
+    f.putRow("harness.threads", threadRow("other", []))
+    expect(client.getSnapshot().threads.map((t) => t.id).sort()).toEqual(["other", "t1"])
 
-    f.emit("harness.threadDeleted", { threadId: "other" })
-
+    f.delRow("harness.threads", "other")
     expect(client.getSnapshot().threads.map((t) => t.id)).toEqual(["t1"])
     expect(client.getSnapshot().activeThreadDeleted).toBe(false)
-    expect(client.getSnapshot().tree.turns).toEqual(["r1"]) // active view untouched
+    expect(client.getSnapshot().tree.turns).toEqual(["r1"])
   })
 
-  it("threadDeleted of the ACTIVE thread flips activeThreadDeleted and blanks the view", async () => {
-    const { f, client } = await setup({
-      "harness.listThreads": async () => ({ threads: [{ id: "t1", resourceId: "web" }] }),
-    })
-    await client.refreshThreads()
+  it("deleting the ACTIVE thread flips activeThreadDeleted and blanks the view", async () => {
+    const { f, client } = await setup()
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "hi", status: "complete" }) })
     expect(client.getSnapshot().tree.turns).toEqual(["r1"])
+    expect(client.getSnapshot().threads.map((t) => t.id)).toEqual(["t1"])
 
-    f.emit("harness.threadDeleted", { threadId: "t1" }) // t1 is the active thread
+    f.delRow("harness.threads", "t1") // the active thread, deleted elsewhere
 
     const s = client.getSnapshot()
     expect(s.activeThreadDeleted).toBe(true)
     expect(s.threads.map((t) => t.id)).toEqual([])
-    expect(s.tree.turns).toEqual([]) // blanked
+    expect(s.tree.turns).toEqual([])
     expect(s.busy).toBe(false)
   })
 
   it("switchThread clears the activeThreadDeleted limbo", async () => {
     const { f, client } = await setup()
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", status: "complete" }) })
-    f.emit("harness.threadDeleted", { threadId: "t1" })
+    f.delRow("harness.threads", "t1")
     expect(client.getSnapshot().activeThreadDeleted).toBe(true)
 
     await client.switchThread("t2")
@@ -344,9 +307,6 @@ describe("HarnessClient state machine", () => {
   })
 
   it("StrictMode cycle: close() during an in-flight connect() abandons wire A and lives on wire B", async () => {
-    // Each connect() gets its OWN wire (factory seam) — like production, where
-    // every connect constructs a fresh super-line client. A's join blocks until
-    // released, so close() lands while the first connect is mid-handshake.
     let release!: () => void
     const gate = new Promise<void>((r) => (release = r))
     const wireA = fakeWire({
@@ -360,26 +320,22 @@ describe("HarnessClient state machine", () => {
     const client = createHarnessClient({ threadId: "t1", client: () => instances.shift()!.wire })
     clients.push(client)
 
-    const first = client.connect() // mount → wire A, join parked
-    client.close() //                 StrictMode unmount mid-handshake
-    const second = client.connect() // remount → wire B, must not be blocked
+    const first = client.connect()
+    client.close()
+    const second = client.connect()
     release()
     await Promise.all([first, second])
 
-    expect((wireA.raw as { connected: boolean }).connected).toBe(false) // A was closed
-    expect(client.getSnapshot().connected).toBe(true) // B's session is live
+    expect((wireA.raw as { connected: boolean }).connected).toBe(false)
+    expect(client.getSnapshot().connected).toBe(true)
 
-    // the abandoned A must have NO tree subscription; B's is the live one
     writeTree(wireA, "t1", ["rA"], { rA: node({ nodeId: "rA", text: "ghost", status: "complete" }) })
     expect(client.getSnapshot().tree.turns).toEqual([])
     writeTree(wireB, "t1", ["rB"], { rB: node({ nodeId: "rB", text: "hi", status: "complete" }) })
     expect(client.getSnapshot().tree.turns).toEqual(["rB"])
   })
 
-  it("borrowed StrictMode cycle: close() mid-connect leaves ONE poll and no duplicate listeners", async () => {
-    // Both connects receive the SAME borrowed instance, so identity can't
-    // distinguish the sessions — the epoch guard must. A leaked first session
-    // would double-attach listeners and leave two reconnect polls running.
+  it("borrowed StrictMode cycle: close() mid-connect leaves ONE poll and no duplicate rows", async () => {
     vi.useFakeTimers()
     try {
       let release!: () => void
@@ -394,15 +350,15 @@ describe("HarnessClient state machine", () => {
       const client = createHarnessClient({ threadId: "t1", client: f.wire })
       clients.push(client)
 
-      const first = client.connect() // borrowed instance, join parked
-      client.close() //                 StrictMode unmount mid-handshake
-      const second = client.connect() // remount on the SAME instance
+      const first = client.connect()
+      client.close()
+      const second = client.connect()
       release()
       await Promise.all([first, second])
       expect(client.getSnapshot().connected).toBe(true)
 
-      // one live listener per event — a leaked attachment would double-insert
-      f.emit("harness.threadCreated", { id: "tX", resourceId: "r" })
+      // one row per thread — a leaked subscription can't double it (keyed by id)
+      f.putRow("harness.threads", threadRow("tX", []))
       expect(client.getSnapshot().threads.filter((t) => t.id === "tX")).toHaveLength(1)
 
       // one reconnect poll — a leaked one would re-join twice per recovery
@@ -417,17 +373,16 @@ describe("HarnessClient state machine", () => {
     }
   })
 
-  it("in activeThreadDeleted limbo the poll does NOT re-join (a re-join would resurrect the purged doc)", async () => {
+  it("in activeThreadDeleted limbo the poll does NOT re-join (a re-join would resurrect the purged thread)", async () => {
     vi.useFakeTimers()
     try {
       let joins = 0
-      const f = fakeWire({
-        "harness.join": async () => (joins++, { ok: true }),
-      })
+      const f = fakeWire({ "harness.join": async () => (joins++, { ok: true }) })
       const client = createHarnessClient({ threadId: "t1", client: f.wire })
       clients.push(client)
       await client.connect()
-      f.emit("harness.threadDeleted", { threadId: "t1" }) // active thread → limbo
+      writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", status: "complete" }) })
+      f.delRow("harness.threads", "t1") // active thread → limbo
       expect(client.getSnapshot().activeThreadDeleted).toBe(true)
 
       const before = joins
@@ -435,8 +390,8 @@ describe("HarnessClient state machine", () => {
       await vi.advanceTimersByTimeAsync(1000)
       ;(f.raw as { connected: boolean }).connected = true
       await vi.advanceTimersByTimeAsync(1000)
-      expect(joins).toBe(before) // no resurrection
-      expect(client.getSnapshot().connected).toBe(true) // but connectivity still tracked
+      expect(joins).toBe(before)
+      expect(client.getSnapshot().connected).toBe(true)
     } finally {
       vi.useRealTimers()
     }
@@ -448,9 +403,8 @@ describe("HarnessClient state machine", () => {
     await client.connect()
 
     client.close()
-    expect((f.raw as { connected: boolean }).connected).toBe(true) // host socket untouched
+    expect((f.raw as { connected: boolean }).connected).toBe(true)
 
-    // detached: a post-close event must not resurrect state
     f.emit("harness.suspended", { threadId: "t1", nodeId: "r1", toolCallId: "a1", toolName: "ask_user", request: "q" })
     expect(client.getSnapshot().pendingAsk).toBeNull()
   })
@@ -460,7 +414,6 @@ describe("HarnessClient state machine", () => {
     let joins = 0
     const f = fakeWire({
       "harness.join": async () => {
-        // first join (connect) resolves; the switchThread join parks
         if (++joins < 2) return { ok: true }
         await new Promise<void>((r) => (releaseJoin = r))
         return { ok: true }
@@ -470,13 +423,10 @@ describe("HarnessClient state machine", () => {
     clients.push(client)
     await client.connect()
     writeTree(f, "t1", ["r1"], { r1: node({ nodeId: "r1", text: "old", status: "complete" }) })
-    const oldThreadHandle = f.handle("harness.thread", "t1")
-    const oldNodeHandle = f.handle("harness.node", "r1")
 
-    const switching = client.switchThread("t2") // join for t2 is parked
-    // stale old-thread writes land DURING the switch — the early detach must eat them
-    oldThreadHandle.write({ turns: ["r1"], nodes: { r1: { parentNodeId: null, depth: 0, childOrder: [] } } })
-    oldNodeHandle.write(node({ nodeId: "r1", text: "zombie" }))
+    const switching = client.switchThread("t2")
+    // stale old-thread write lands DURING the switch — the early detach must eat it
+    f.putRow("harness.nodes", { id: "r1", threadId: "t1", parentNodeId: null, depth: 0, status: "running", reasoning: "", text: "zombie", toolOrder: [], childOrder: [] } as NodeRow)
     expect(client.getSnapshot().threadId).toBe("t2")
     expect(client.getSnapshot().tree.turns).toEqual([])
 
