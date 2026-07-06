@@ -229,6 +229,48 @@ importers:
         specifier: ^4.1.2
         version: 4.1.9(@opentelemetry/api@1.9.1)(@types/node@25.9.4)(vite@7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5))
 
+  examples/auth:
+    dependencies:
+      '@ai-sdk/gateway':
+        specifier: ^4.0.3
+        version: 4.0.8(zod@4.4.3)
+      '@mastra/core':
+        specifier: 1.49.0-alpha.2
+        version: 1.49.0-alpha.2(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+      '@super-harness/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@super-harness/react':
+        specifier: workspace:*
+        version: link:../../packages/react
+      '@super-harness/server':
+        specifier: workspace:*
+        version: link:../../packages/server
+      '@super-harness/shared':
+        specifier: workspace:*
+        version: link:../../packages/shared
+      '@super-line/client':
+        specifier: ^0.8.1
+        version: 0.8.1
+      '@super-line/collections-memory':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@super-line/core':
+        specifier: ^0.10.1
+        version: 0.10.1
+      '@super-line/plugin-auth':
+        specifier: ^0.1.0
+        version: 0.1.0(@super-line/client@0.8.1)(@super-line/server@0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(react@19.2.7)
+      '@super-line/server':
+        specifier: ^0.10.2
+        version: 0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@super-line/transport-websocket':
+        specifier: ^0.6.0
+        version: 0.6.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+
   examples/composed-host:
     dependencies:
       '@ai-sdk/gateway':
@@ -2895,6 +2937,21 @@ packages:
     resolution: {integrity: sha512-RKc9HGSZazXMTJPYgCJ4CkAsJU8wghKuKodk0HPcD6ODFFUVQo+rjVrqfh+IwULXOUYq1fc50em43ydorMqshw==}
     engines: {node: '>=18'}
 
+  '@super-line/plugin-auth@0.1.0':
+    resolution: {integrity: sha512-uzDwkJAphfpzBiznsuLKOI1gkQRlMZ/hvJNl4+hRKInOSjr3xaJkFAosy29EuT16fNEnU8daQel2NrJ68zPKQw==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@super-line/client': ^0.8.0
+      '@super-line/server': ^0.10.2
+      react: '>=18'
+    peerDependenciesMeta:
+      '@super-line/client':
+        optional: true
+      '@super-line/server':
+        optional: true
+      react:
+        optional: true
+
   '@super-line/plugin-inspector@0.1.0':
     resolution: {integrity: sha512-xINZcJr30VLHOzRA0y9QCdJAypoDHgMd1kTK9m8FxoOAeQjdlAodD4KyxlYn14+TQ3NmzUx6UvmPCdE4tydQ8w==}
     engines: {node: '>=18'}
@@ -4297,6 +4354,9 @@ packages:
   jiti@2.7.0:
     resolution: {integrity: sha512-AC/7JofJvZGrrneWNaEnJeOLUx+JlGt7tNa0wZiRPT4MY1wmfKjt2+6O2p2uz2+skll8OZZmJMNqeke7kKbNgQ==}
     hasBin: true
+
+  jose@5.10.0:
+    resolution: {integrity: sha512-s+3Al/p9g32Iq+oqXxkW//7jk2Vig6FF1CFqzVXoTUXt2qz89YWbL+OwS17NFYEvxC35n0FKeGO2LGYSxeM2Gg==}
 
   jose@6.2.3:
     resolution: {integrity: sha512-YYVDInQKFJfR/xa3ojUTl8c2KoTwiL1R5Wg9YCydwH0x0B9grbzlg5HC7mMjCtUJjbQ/YnGEZIhI5tCgfTb4Hw==}
@@ -8201,6 +8261,16 @@ snapshots:
     dependencies:
       '@standard-schema/spec': 1.1.0
 
+  '@super-line/plugin-auth@0.1.0(@super-line/client@0.8.1)(@super-line/server@0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(react@19.2.7)':
+    dependencies:
+      '@super-line/core': 0.10.1
+      jose: 5.10.0
+      zod: 3.25.76
+    optionalDependencies:
+      '@super-line/client': 0.8.1
+      '@super-line/server': 0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      react: 19.2.7
+
   '@super-line/plugin-inspector@0.1.0(@standard-schema/spec@1.1.0)(@super-line/server@0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
@@ -9789,6 +9859,8 @@ snapshots:
       '@jimp/utils': 1.6.0
 
   jiti@2.7.0: {}
+
+  jose@5.10.0: {}
 
   jose@6.2.3: {}
 
