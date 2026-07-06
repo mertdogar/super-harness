@@ -252,15 +252,15 @@ importers:
       '@super-line/client':
         specifier: ^0.8.1
         version: 0.8.1
+      '@super-line/collections-memory':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@super-line/core':
         specifier: ^0.10.1
         version: 0.10.1
       '@super-line/server':
         specifier: ^0.10.2
         version: 0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
-      '@super-line/store-memory':
-        specifier: ^0.9.0
-        version: 0.9.0
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -418,6 +418,9 @@ importers:
       '@super-harness/server':
         specifier: workspace:*
         version: link:../../../packages/server
+      '@super-line/collections-memory':
+        specifier: ^0.1.0
+        version: 0.1.0
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -549,9 +552,15 @@ importers:
       '@super-line/adapter-libp2p':
         specifier: ^0.6.0
         version: 0.6.0
-      '@super-line/store-pglite':
-        specifier: ^0.2.0
-        version: 0.2.0
+      '@super-line/collections-pglite':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@super-line/collections-sqlite':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@super-line/plugin-inspector':
+        specifier: ^0.1.0
+        version: 0.1.0(@standard-schema/spec@1.1.0)(@super-line/server@0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -2885,6 +2894,12 @@ packages:
   '@super-line/core@0.10.1':
     resolution: {integrity: sha512-RKc9HGSZazXMTJPYgCJ4CkAsJU8wghKuKodk0HPcD6ODFFUVQo+rjVrqfh+IwULXOUYq1fc50em43ydorMqshw==}
     engines: {node: '>=18'}
+
+  '@super-line/plugin-inspector@0.1.0':
+    resolution: {integrity: sha512-xINZcJr30VLHOzRA0y9QCdJAypoDHgMd1kTK9m8FxoOAeQjdlAodD4KyxlYn14+TQ3NmzUx6UvmPCdE4tydQ8w==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@super-line/server': ^0.10.0
 
   '@super-line/server@0.10.2':
     resolution: {integrity: sha512-397sOz0r+G16gTV+EuhJkUBgbVIXaZJVhDAAHxYiZqzDGhMr8p56ja7+nrBW83Vb8efx/ZeZ/zRqdowO4VTSKA==}
@@ -8136,7 +8151,6 @@ snapshots:
     optionalDependencies:
       zod: 4.4.3
       zod-to-json-schema: 3.25.2(zod@4.4.3)
-    optional: true
 
   '@standard-schema/spec@1.1.0': {}
 
@@ -8186,6 +8200,24 @@ snapshots:
   '@super-line/core@0.10.1':
     dependencies:
       '@standard-schema/spec': 1.1.0
+
+  '@super-line/plugin-inspector@0.1.0(@standard-schema/spec@1.1.0)(@super-line/server@0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
+    dependencies:
+      '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@super-line/core': 0.10.1
+      '@super-line/server': 0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+    transitivePeerDependencies:
+      - '@standard-schema/spec'
+      - '@types/json-schema'
+      - '@valibot/to-json-schema'
+      - arktype
+      - effect
+      - quansync
+      - sury
+      - typebox
+      - valibot
+      - zod
+      - zod-to-json-schema
 
   '@super-line/server@0.10.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
     dependencies:
@@ -8464,8 +8496,7 @@ snapshots:
     dependencies:
       '@types/unist': 3.0.3
 
-  '@types/json-schema@7.0.15':
-    optional: true
+  '@types/json-schema@7.0.15': {}
 
   '@types/mdast@4.0.4':
     dependencies:
@@ -10745,8 +10776,7 @@ snapshots:
       es-define-property: 1.0.1
       side-channel: 1.1.1
 
-  quansync@0.2.11:
-    optional: true
+  quansync@0.2.11: {}
 
   queue-microtask@1.2.3: {}
 

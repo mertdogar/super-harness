@@ -22,6 +22,7 @@ import { createClient } from "@libsql/client"
 import { gateway } from "ai"
 import { z } from "zod"
 import { webSocketServerTransport } from "@super-line/transport-websocket"
+import { inspector } from "@super-line/plugin-inspector"
 import { createHarness } from "@super-harness/core"
 import { serve, type ServeConfig } from "@super-harness/server"
 import { createLibp2pAdapter } from '@super-line/adapter-libp2p'
@@ -83,13 +84,12 @@ const sendReportTool = createTool({
 })
 
 // Storage backend, chosen by a plain env var (SUPER_HARNESS_STORAGE, default
-// libsql). Mastra's ground truth (threads/messages/mode) and serve()'s durable
-// tree Stores always land in the SAME database, so they stay in sync:
-//   libsql   — one dev.db backs both (single-node dev; delete dev.db to reset)
-//   postgres — Mastra PostgresStore; serve() reuses its pool (superline_* beside
-//              mastra_* in one central PG; no Electric, single fan-out)
-//   pglite   — Mastra PostgresStore; serve() pglite = central PG + per-node
-//              Electric-synced replicas — the multi-node choice
+// libsql). Mastra's ground truth (threads/messages/mode) lives in libsql/postgres;
+// the harness TREE rides super-line COLLECTIONS (their own backend):
+//   libsql/postgres — Mastra on libsql/PG; tree collections on a local sqlite
+//                     file (single-node dev; delete harness.db to reset the tree)
+//   pglite          — tree collections = central PG + per-node Electric-synced
+//                     replicas — the multi-node choice (docker-compose.yml)
 const STORAGE = process.env.SUPER_HARNESS_STORAGE ?? "libsql"
 const PG_URL = process.env.PG_URL ?? ""
 const ELECTRIC_URL = process.env.ELECTRIC_URL
@@ -99,7 +99,7 @@ let treeStorage: ServeConfig["storage"]
 if (STORAGE === "libsql") {
   const dbClient = createClient({ url: "file:./dev.db" })
   storage = new LibSQLStore({ id: "web", client: dbClient })
-  treeStorage = { type: "libsql", client: dbClient }
+  treeStorage = { type: "sqlite", file: "./harness.db" }
 } else {
   if (!PG_URL) {
     console.error(`SUPER_HARNESS_STORAGE=${STORAGE} needs PG_URL`)
@@ -108,9 +108,7 @@ if (STORAGE === "libsql") {
   const pg = new PostgresStore({ id: "web", connectionString: PG_URL })
   storage = pg
   treeStorage =
-    STORAGE === "pglite"
-      ? { type: "pglite", pgUrl: PG_URL, electricUrl: ELECTRIC_URL }
-      : { type: "postgres", db: pg.db }
+    STORAGE === "pglite" ? { type: "pglite", pgUrl: PG_URL, electricUrl: ELECTRIC_URL } : { type: "sqlite", file: "./harness.db" }
 }
 const mem = () => new Memory({ storage, options: { lastMessages: 10 } })
 
@@ -184,17 +182,18 @@ const httpServer = serveHttp({ fetch: app.fetch, port: PORT }, (info) => {
   console.log(`[web-server] http://localhost:${info.port}  ws://localhost:${info.port}/super-line  model=${MODEL}  storage=${STORAGE}${node}`)
 }) as Server
 
-// inspector: read-only Control Center tap, UNAUTHENTICATED — dev only. Needs
-// the flag on BOTH the transport (subprotocol) and serve() (msg.* telemetry).
+// inspector: read-only Control Center tap, UNAUTHENTICATED — dev only. Now a
+// first-class plugin (@super-line/plugin-inspector) composed via serve()'s
+// `plugins` — its connection class negotiates the CC subprotocol itself, so the
+// transport no longer carries an `inspector` flag.
 // Watch live: pnpm -F @super-harness/web-server inspect
 const INSPECTOR = process.env.SUPER_HARNESS_INSPECTOR !== "0"
 await serve(harness, {
-  storage: treeStorage, // durable tree in the SAME database as Mastra's memory (see STORAGE above)
-  transports: [webSocketServerTransport({ server: httpServer, path: "/super-line", inspector: INSPECTOR })],
-  inspector: INSPECTOR,
-  // The STORE needs no adapter — Electric is its CRDT bus. This broker-less libp2p mesh is a SEPARATE
-  // plane carrying presence + inspector so the Control Center sees the whole cluster (the store never
-  // touches it). No node list, no bootstrap, no peer IDs to pre-compute — every node finds its peers
-  // over mDNS on the shared network and the adapter dials them itself.
+  storage: treeStorage,
+  transports: [webSocketServerTransport({ server: httpServer, path: "/super-line" })],
+  plugins: INSPECTOR ? [inspector()] : [],
+  // The collections backend needs no adapter — Electric is its CRDT bus. This broker-less libp2p mesh is a
+  // SEPARATE plane carrying presence + inspector so the Control Center sees the whole cluster. No node list,
+  // no bootstrap, no peer IDs — every node finds its peers over mDNS and the adapter dials them itself.
   adapter: await createLibp2pAdapter({ discovery: 'mdns' }),
 })

@@ -99,6 +99,9 @@ function mkClient(params: Record<string, string>) {
     transport: webSocketClientTransport({ url: URL }),
     role: 'user',
     params,
+    // Swallow the DISCONNECTED rejection that fires when a client is torn down
+    // mid-subscription — a teardown artifact, not a test failure.
+    onError: () => {},
   } as never)
 }
 

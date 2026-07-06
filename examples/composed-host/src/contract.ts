@@ -1,23 +1,21 @@
-// The HOST app's contract: its own surface merged with the harness fragment.
-// Shared by server.ts and client.ts — in a real host this is your app's
-// existing contract module. A duplicate key across the two surfaces is a
-// compile error naming the key; the harness.* prefix makes collisions
-// impossible in practice.
+// The HOST app's contract: its own surface + the harness fragment, merged via
+// `plugins`. Shared by server.ts and client.ts — in a real host this is your
+// app's existing contract module. harnessContract() contributes the harness
+// surface (on `shared`) AND the four harness.* collections; a duplicate
+// collection/handler key throws at defineContract, but the harness.* prefix
+// makes collisions impossible in practice.
 import { z } from "zod"
-import { defineContract, defineSurface, mergeSurfaces } from "@super-line/core"
-import { harnessSurface } from "@super-harness/shared"
+import { defineContract, defineSurface } from "@super-line/core"
+import { harnessContract } from "@super-harness/shared"
 
 export const hostContract = defineContract({
-  // harnessSurface must ride `shared` (not a role): super-line rooms are
-  // mixed-role, so room broadcasts only carry shared events — and every
-  // harness signal is a room broadcast.
-  shared: mergeSurfaces(
-    harnessSurface,
-    defineSurface({
-      clientToServer: {
-        "demo.echo": { input: z.object({ text: z.string() }), output: z.object({ echoed: z.string() }) },
-      },
-    }),
-  ),
+  plugins: [harnessContract()],
+  // The host's own request. `demo.echo` rides `shared` here for simplicity; a
+  // real app would put role-specific requests under `roles`.
+  shared: defineSurface({
+    clientToServer: {
+      "demo.echo": { input: z.object({ text: z.string() }), output: z.object({ echoed: z.string() }) },
+    },
+  }),
   roles: { user: {} },
 })

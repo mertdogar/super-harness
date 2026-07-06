@@ -91,6 +91,7 @@ function mkClient() {
     transport: webSocketClientTransport({ url: URL }),
     role: 'user',
     params: { userId: 'u1', resourceId: 'res-1' },
+    onError: () => {},
   } as never)
 }
 

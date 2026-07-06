@@ -18,7 +18,8 @@
     "@super-harness/server": "workspace:*",
     "@super-line/transport-websocket": "^0.6.0",
     "tsx": "^4.21.0",
-    "zod": "^4.4.3"
+    "zod": "^4.4.3",
+    "@super-line/collections-memory": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

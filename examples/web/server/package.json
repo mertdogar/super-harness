@@ -21,12 +21,14 @@
     "@super-harness/core": "workspace:*",
     "@super-harness/server": "workspace:*",
     "@super-line/adapter-libp2p": "^0.6.0",
-    "@super-line/store-pglite": "^0.2.0",
     "@super-line/transport-websocket": "^0.6.0",
     "hono": "^4.12.10",
     "tsx": "^4.21.0",
     "zod": "^4.4.3",
-    "ai": "^6.0.0"
+    "ai": "^6.0.0",
+    "@super-line/collections-sqlite": "^0.1.0",
+    "@super-line/collections-pglite": "^0.1.0",
+    "@super-line/plugin-inspector": "^0.1.0"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

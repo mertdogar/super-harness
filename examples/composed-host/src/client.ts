@@ -5,17 +5,16 @@
 // without ever closing the socket.
 import { createSuperLineClient } from "@super-line/client"
 import { webSocketClientTransport } from "@super-line/transport-websocket"
-import { createHarnessClient, harnessClientStores } from "@super-harness/react/client"
+import { createHarnessClient } from "@super-harness/react/client"
 import { hostContract } from "./contract"
 
 const URL = process.env.COMPOSED_HOST_URL ?? "ws://localhost:4112/ws"
 
-// The host app's one client: its own stores would sit beside the harness's.
+// The host app's one client — collections ride the built-in client.collection().
 const line = createSuperLineClient(hostContract, {
   transport: webSocketClientTransport({ url: URL }),
   role: "user",
   params: { userId: "demo-user" },
-  stores: { ...harnessClientStores() },
 })
 
 // Host surface…

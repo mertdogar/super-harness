@@ -4,7 +4,7 @@
 // own contract and adds harness(engine) to its own plugins (see examples).
 
 import type { Adapter, CollectionStore, ServerTransport } from '@super-line/core'
-import { createSuperLineServer } from '@super-line/server'
+import { createSuperLineServer, type SuperLinePlugin } from '@super-line/server'
 import { memoryCollections } from '@super-line/collections-memory'
 import { sqliteCollections } from '@super-line/collections-sqlite'
 import { contract } from '@super-harness/shared'
@@ -42,6 +42,10 @@ export interface ServeConfig {
   authenticate?: (handshake: unknown) => { role: 'user'; ctx: HarnessCtx }
   // Membership role policy passed through to the harness() plugin.
   plugin?: HarnessPluginOptions
+  // Extra super-line plugins to compose beside harness() — e.g. inspector()
+  // (@super-line/plugin-inspector) or auth() (@super-line/plugin-auth). Mounted
+  // after harness() in array order.
+  plugins?: SuperLinePlugin[]
 }
 
 export interface HarnessServer {
@@ -65,7 +69,7 @@ export async function serve(engine: Harness, config: ServeConfig = {}): Promise<
     authenticate: config.authenticate ?? defaultAuthenticate,
     identify: (conn: { ctx: HarnessCtx }) => conn.ctx.userId,
     collections,
-    plugins: [harness(engine, config.plugin)],
+    plugins: [harness(engine, config.plugin), ...(config.plugins ?? [])],
     adapter: config.adapter,
   } as never)
 

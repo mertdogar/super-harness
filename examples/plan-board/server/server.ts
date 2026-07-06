@@ -79,8 +79,8 @@ const publishPlanTool = createTool({
 
 // One shared LibSQL db. Mastra memory lets harness.listThreads work (the react
 // client calls it on connect) and gives the planner cross-turn recall so you can
-// ask it to revise the plan. serve()'s tree Store stays in-memory — the client
-// mints a fresh threadId per load, so tree durability buys nothing here.
+// ask it to revise the plan. serve()'s tree collections stay in-memory — the
+// client mints a fresh threadId per load, so tree durability buys nothing here.
 const storage = new LibSQLStore({ id: "plan-board", url: "file:./dev.db" })
 const mem = () => new Memory({ storage, options: { lastMessages: 10 } })
 
