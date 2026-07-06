@@ -192,6 +192,7 @@ export function diffTree(prev: ClientTree, next: ClientTree): HarnessEvent[] {
 
     for (const tid of n.toolOrder) {
       const t = n.tools[tid]
+      if (!t) continue // tool row may lag the node row's toolOrder — skip until it arrives
       const pt = p?.tools[tid]
       // Emit tool_start when args first become available (the tool leaves
       // input-streaming) — not at first sight, when the streamed args are still

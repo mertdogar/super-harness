@@ -1,15 +1,15 @@
 // End-to-end wire test through the REAL binding: a fake-runner Harness served
-// over a real WebSocket via serve(), read back via the client view
-// (subscribeTree + diffTree). Exercises the harness bus -> Projector -> Store
-// -> transport -> client fold, plus the suspended broadcast, with no
-// model/key. (Historically this path caught the create/open ACL race and the
-// open-before-create dead-handle bug.)
+// over a real WebSocket via serve() (plugins:[harness()] + a memory collections
+// backend), read back via the client view (subscribeTree over collections +
+// token-delta events + diffTree). Exercises the bus -> Projector -> collections
+// writer -> transport -> client fold, the suspended broadcast, thread-row
+// reactivity, and the deleteThread cascade — with no model/key.
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { createServer, type Server } from 'node:http'
 import { createSuperLineClient } from '@super-line/client'
 import { webSocketServerTransport, webSocketClientTransport } from '@super-line/transport-websocket'
-import { memoryStoreClient } from '@super-line/store-memory'
+import { eq } from '@super-line/core'
 import { contract, diffTree, emptyTree, subscribeTree, type ClientTree, type HarnessEvent } from '@super-harness/shared'
 import { Harness, type SubagentEntry, type ThreadRecord, type ThreadStore } from '@super-harness/core'
 import type { AgentRunner, NodeEnvelope, HarnessRuntime, ChunkLike } from '@super-harness/core'
@@ -69,13 +69,40 @@ function fakeThreadStore(): ThreadStore {
   }
 }
 
+// Subscribe a collection and keep a live view of its rows for assertions. Awaits
+// the initial snapshot (`ready`) so live updates aren't clobbered by a late snapshot.
+async function watchRows(
+  client: unknown,
+  name: string,
+  filter?: unknown,
+): Promise<{ rows: () => Record<string, unknown>[]; stop: () => void }> {
+  const sub = (
+    client as {
+      collection(n: string): { subscribe(q?: unknown): { rows(): unknown[]; subscribe(cb: () => void): () => void; ready: Promise<void> } }
+    }
+  )
+    .collection(name)
+    .subscribe(filter ? { filter } : undefined)
+  const off = sub.subscribe(() => {})
+  await sub.ready
+  return { rows: () => sub.rows() as Record<string, unknown>[], stop: off }
+}
+
 let cleanup: (() => void) | null = null
 afterEach(() => {
   cleanup?.()
   cleanup = null
 })
 
-describe('wire (serve() over ws, via the Store)', () => {
+function mkClient(params: Record<string, string>) {
+  return createSuperLineClient(contract, {
+    transport: webSocketClientTransport({ url: URL }),
+    role: 'user',
+    params,
+  } as never)
+}
+
+describe('wire (serve() over ws, via collections)', () => {
   it('syncs a delegated turn tree to the client through subscribeTree + diffTree', async () => {
     const httpServer: Server = createServer()
     const harness = buildHarness()
@@ -85,13 +112,7 @@ describe('wire (serve() over ws, via the Store)', () => {
     })
     await new Promise<void>((resolve) => httpServer.listen(PORT, resolve))
 
-    const client = createSuperLineClient(contract, {
-      transport: webSocketClientTransport({ url: URL }),
-      role: 'user',
-      params: { userId: 'local' },
-      stores: { 'harness.node': memoryStoreClient(), 'harness.thread': memoryStoreClient() },
-    } as never)
-
+    const client = mkClient({ userId: 'local' })
     cleanup = () => {
       client.close()
       close()
@@ -117,21 +138,14 @@ describe('wire (serve() over ws, via the Store)', () => {
 
     expect(done).toBe(true)
 
-    // the supervisor root and the delegated worker child both synced
     const roots = events.filter((e) => e.type === 'node_start' && e.parentNodeId === null)
     const children = events.filter((e) => e.type === 'node_start' && e.parentNodeId !== null)
     expect(roots).toHaveLength(1)
     expect(children[0]).toMatchObject({ nodeId: 'c1', depth: 1, agentType: 'worker' })
 
-    // the worker's tool ran and settled ok
     const toolEnd = events.find((e) => e.type === 'tool_end')
     expect(toolEnd).toMatchObject({ toolCallId: 't1', isError: false, result: { tempF: 72 } })
 
-    // Final tree state, root id taken from the event stream — NOT prev.turns:
-    // upstream super-line delivers the subscribe-time snapshot of the (empty)
-    // pre-created thread doc AFTER live co-writer deltas on the same socket, so
-    // a fast turn leaves the client's `turns` clobbered back to []. Node docs
-    // are unaffected (subscribeTree retains opened node state).
     const rootId = roots[0].nodeId
     expect(prev.nodes[rootId]?.status).toBe('complete')
     expect(prev.nodes[rootId]?.text).toBe('Working on it. Done.')
@@ -148,10 +162,7 @@ describe('wire (serve() over ws, via the Store)', () => {
         async (opts) => ({
           fullStream: (async function* () {
             if (opts.resumeData !== undefined) {
-              yield {
-                type: 'text-delta',
-                payload: { text: `resumed:${(opts.resumeData as { answer: string }).answer}` },
-              }
+              yield { type: 'text-delta', payload: { text: `resumed:${(opts.resumeData as { answer: string }).answer}` } }
               return
             }
             yield {
@@ -170,12 +181,7 @@ describe('wire (serve() over ws, via the Store)', () => {
     })
     await new Promise<void>((resolve) => httpServer.listen(PORT, resolve))
 
-    const client = createSuperLineClient(contract, {
-      transport: webSocketClientTransport({ url: URL }),
-      role: 'user',
-      params: { userId: 'local' },
-      stores: { 'harness.node': memoryStoreClient(), 'harness.thread': memoryStoreClient() },
-    } as never)
+    const client = mkClient({ userId: 'local' })
     cleanup = () => {
       client.close()
       close()
@@ -189,12 +195,7 @@ describe('wire (serve() over ws, via the Store)', () => {
     await client['harness.sendMessage']({ threadId: 't2', message: 'go' })
     for (let i = 0; i < 200 && suspendedEvents.length === 0; i++) await sleep(10)
 
-    expect(suspendedEvents[0]).toMatchObject({
-      threadId: 't2',
-      toolCallId: 'ask-1',
-      toolName: 'ask_user',
-      request: { question: 'ok?' },
-    })
+    expect(suspendedEvents[0]).toMatchObject({ threadId: 't2', toolCallId: 'ask-1', toolName: 'ask_user', request: { question: 'ok?' } })
 
     await client['harness.resumeMessage']({ threadId: 't2', resumeData: { answer: 'yes' } })
     let text: string | undefined
@@ -207,7 +208,7 @@ describe('wire (serve() over ws, via the Store)', () => {
     expect(text).toBe('resumed:yes')
   })
 
-  it('broadcasts threadRenamed over the wire once the harness generates a title', async () => {
+  it('reflects a generated title as a harness.threads row update', async () => {
     const registry = new Map<string, SubagentEntry>()
     registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
     const harness = new Harness({
@@ -225,32 +226,28 @@ describe('wire (serve() over ws, via the Store)', () => {
     })
     await new Promise<void>((resolve) => httpServer.listen(PORT, resolve))
 
-    const client = createSuperLineClient(contract, {
-      transport: webSocketClientTransport({ url: URL }),
-      role: 'user',
-      params: { resourceId: 'res-1' },
-      stores: { 'harness.node': memoryStoreClient(), 'harness.thread': memoryStoreClient() },
-    } as never)
+    const client = mkClient({ resourceId: 'res-1' })
     cleanup = () => {
       client.close()
       close()
       httpServer.close()
     }
 
-    const renamed: unknown[] = []
-    client.on('harness.threadRenamed', (p: unknown) => void renamed.push(p))
-
-    // Thread + client share resource 'res-1' — the rename broadcasts to that
-    // resource room, which the client joined lazily via harness.join.
     await harness.threads.create({ threadId: 't3', resourceId: 'res-1' })
     await client['harness.join']({ threadId: 't3' })
-    await client['harness.sendMessage']({ threadId: 't3', message: 'plan my trip' })
-    for (let i = 0; i < 200 && renamed.length === 0; i++) await sleep(10)
+    const threads = await watchRows(client, 'harness.threads', eq('resourceId', 'res-1'))
 
-    expect(renamed[0]).toMatchObject({ threadId: 't3', title: 'Title: plan my trip' })
+    await client['harness.sendMessage']({ threadId: 't3', message: 'plan my trip' })
+    let titled: Record<string, unknown> | undefined
+    for (let i = 0; i < 200 && !titled; i++) {
+      await sleep(10)
+      titled = threads.rows().find((r) => r.title === 'Title: plan my trip')
+    }
+    threads.stop()
+    expect(titled).toMatchObject({ id: 't3', title: 'Title: plan my trip' })
   })
 
-  it('broadcasts threadCreated/threadDeleted to a SECOND connection in the same resource, and scopes listThreads', async () => {
+  it('reflects create/delete as harness.threads row deltas to a second connection, and scopes listThreads', async () => {
     const harness = buildHarness(fakeThreadStore())
     const httpServer: Server = createServer()
     const { close } = await serve(harness, {
@@ -259,15 +256,8 @@ describe('wire (serve() over ws, via the Store)', () => {
     })
     await new Promise<void>((resolve) => httpServer.listen(PORT, resolve))
 
-    const mk = () =>
-      createSuperLineClient(contract, {
-        transport: webSocketClientTransport({ url: URL }),
-        role: 'user',
-        params: { resourceId: 'res-1' },
-        stores: { 'harness.node': memoryStoreClient(), 'harness.thread': memoryStoreClient() },
-      } as never)
-    const a = mk()
-    const b = mk()
+    const a = mkClient({ resourceId: 'res-1' })
+    const b = mkClient({ resourceId: 'res-1' })
     cleanup = () => {
       a.close()
       b.close()
@@ -275,16 +265,16 @@ describe('wire (serve() over ws, via the Store)', () => {
       httpServer.close()
     }
 
-    const created: any[] = []
-    const deleted: any[] = []
-    b.on('harness.threadCreated', (p: unknown) => void created.push(p))
-    b.on('harness.threadDeleted', (p: unknown) => void deleted.push(p))
-    // Force B's connection so it is in the resource room before A creates.
-    await b['harness.listThreads']({})
+    // B watches its resource's thread list — reactivity rides collection rows.
+    const bThreads = await watchRows(b, 'harness.threads', eq('resourceId', 'res-1'))
 
     const { threadId } = await a['harness.createThread']({ title: 'Trip' })
-    for (let i = 0; i < 200 && created.length === 0; i++) await sleep(10)
-    expect(created[0]).toMatchObject({ id: threadId, resourceId: 'res-1' })
+    let created: Record<string, unknown> | undefined
+    for (let i = 0; i < 200 && !created; i++) {
+      await sleep(10)
+      created = bThreads.rows().find((r) => r.id === threadId)
+    }
+    expect(created).toMatchObject({ id: threadId, resourceId: 'res-1', title: 'Trip' })
 
     // A thread under a different resource must not leak into A's scoped list.
     await harness.threads.create({ threadId: 'foreign', resourceId: 'res-2' })
@@ -293,38 +283,42 @@ describe('wire (serve() over ws, via the Store)', () => {
     expect(threads.map((t: { id: string }) => t.id)).not.toContain('foreign')
 
     await a['harness.deleteThread']({ threadId })
-    for (let i = 0; i < 200 && deleted.length === 0; i++) await sleep(10)
-    expect(deleted[0]).toMatchObject({ threadId })
+    let gone = false
+    for (let i = 0; i < 200 && !gone; i++) {
+      await sleep(10)
+      gone = !bThreads.rows().some((r) => r.id === threadId)
+    }
+    bThreads.stop()
+    expect(gone).toBe(true)
   })
 
-  it('deleteThread purges the durable tree docs (thread + every node)', async () => {
+  it('deleteThread purges the durable collection rows (thread + every node)', async () => {
     const harness = buildHarness(fakeThreadStore())
     const { server, close } = await serve(harness, { storage: { type: 'memory' } })
     cleanup = close
 
-    const threadStore = server.store('harness.thread') as unknown as {
-      read(id: string): Promise<{ data?: { nodes?: Record<string, unknown> } } | undefined>
+    const srv = server as unknown as {
+      collection(n: string): { snapshot(q?: unknown): Promise<{ id: string }[]>; read(id: string): Promise<unknown> }
     }
-    const nodeStore = server.store('harness.node') as unknown as { read(id: string): Promise<unknown> }
+    const nodes = srv.collection('harness.nodes')
+    const threads = srv.collection('harness.threads')
 
     await harness.threads.create({ threadId: 'td' })
     await harness.sendMessage({ threadId: 'td', content: 'weather?' })
 
-    // Sink writes are fire-and-forget — wait until the delegated turn landed.
-    let doc: Awaited<ReturnType<typeof threadStore.read>>
+    // Writes are fire-and-forget — wait until the delegated turn's nodes landed.
+    let nodeIds: string[] = []
     for (let i = 0; i < 200; i++) {
-      doc = await threadStore.read('td')
-      if (Object.keys(doc?.data?.nodes ?? {}).length >= 2) break
+      nodeIds = (await nodes.snapshot({ filter: eq('threadId', 'td') })).map((r) => r.id)
+      if (nodeIds.includes('c1')) break
       await sleep(10)
     }
-    const nodeIds = Object.keys(doc?.data?.nodes ?? {})
     expect(nodeIds).toContain('c1')
-    expect(await nodeStore.read('c1')).toBeTruthy()
 
     await harness.threads.delete('td')
-    for (let i = 0; i < 200 && (await threadStore.read('td')); i++) await sleep(10)
+    for (let i = 0; i < 200 && (await threads.read('td')); i++) await sleep(10)
 
-    expect(await threadStore.read('td')).toBeUndefined()
-    for (const id of nodeIds) expect(await nodeStore.read(id)).toBeUndefined()
+    expect(await threads.read('td')).toBeUndefined()
+    for (const id of nodeIds) expect(await nodes.read(id)).toBeUndefined()
   })
 })

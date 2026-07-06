@@ -12,7 +12,7 @@
 // surface/collections without collision.
 
 import { z } from 'zod'
-import { defineContract, defineContractPlugin } from '@super-line/core'
+import { defineContract, defineContractPlugin, defineSurface } from '@super-line/core'
 import { tokenUsageSchema, todoItemSchema } from './events'
 
 // ── ephemeral signals (ride events, not state) ───────────────────────────────
@@ -197,6 +197,15 @@ const events = {
   },
 }
 
+// The harness surface as a defineSurface value — used both in the contract
+// fragment's `shared` block and as the paired-surface type param for the runtime
+// `harness()` plugin (its handlers compile against this).
+export const harnessSurface = defineSurface({
+  clientToServer: requests,
+  serverToClient: events,
+})
+export type HarnessSurface = typeof harnessSurface
+
 // The contract-time half of the harness plugin. Merge into a host contract:
 //   defineContract({ plugins: [harnessContract(), authContract()], roles: {...} })
 // It contributes the 4 collections + the harness surface on `shared`. Handler
@@ -222,10 +231,7 @@ export function harnessContract() {
         references: { threadId: HARNESS_THREADS },
       },
     },
-    shared: {
-      clientToServer: requests,
-      serverToClient: events,
-    },
+    shared: harnessSurface,
   })
 }
 

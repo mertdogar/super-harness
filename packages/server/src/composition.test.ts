@@ -1,39 +1,38 @@
-// Composition e2e: the harness mounted INSIDE a host super-line server whose
-// contract merges harnessSurface with the host's own surface — ONE socket
-// carries both. Proves the library pattern end to end: mergeSurfaces into
-// `shared` + harnessStores spread + mountHarness handlers spread, prefixed
-// keys, and the lazy resource-room join (no onConnection hook to wire).
-// Deliberately cast-free around the mount API — this test IS the host DX.
+// Composition e2e: the harness as a PLUGIN inside a host super-line server whose
+// contract merges harnessContract() with the host's own surface — ONE socket
+// carries both, ONE collections backend serves both. Proves the library pattern:
+// defineContract({ plugins: [harnessContract()] }) + plugins:[harness(engine)],
+// harness.* subtracted from implement(), and identify → the collection principal.
+// Deliberately cast-free around the plugin API — this test IS the host DX.
 
 import { afterEach, describe, expect, it } from 'vitest'
 import { createServer, type Server } from 'node:http'
 import { z } from 'zod'
-import { defineContract, defineSurface, mergeSurfaces } from '@super-line/core'
+import { defineContract, defineSurface, eq } from '@super-line/core'
 import { createSuperLineServer } from '@super-line/server'
 import { createSuperLineClient } from '@super-line/client'
+import { memoryCollections } from '@super-line/collections-memory'
 import { webSocketServerTransport, webSocketClientTransport } from '@super-line/transport-websocket'
-import { memoryStoreClient } from '@super-line/store-memory'
-import { harnessSurface, subscribeTree, diffTree, emptyTree, type ClientTree, type HarnessEvent } from '@super-harness/shared'
+import { harnessContract, subscribeTree, diffTree, emptyTree, type ClientTree, type HarnessEvent } from '@super-harness/shared'
 import { Harness, type SubagentEntry, type ThreadRecord, type ThreadStore } from '@super-harness/core'
 import type { AgentRunner, NodeEnvelope, HarnessRuntime } from '@super-harness/core'
-import { harnessStores, mountHarness } from './serve'
+import { harness } from './plugin'
 
 const PORT = 4127
 const URL = `ws://127.0.0.1:${PORT}/ws`
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-// The host app's own contract: harnessSurface merged into `shared` (rooms only
-// carry shared events) next to a host-owned request.
+// The host's own contract: harnessContract() merged via `plugins`, plus a
+// host-owned request in the `user` role.
 const hostContract = defineContract({
-  shared: mergeSurfaces(
-    harnessSurface,
-    defineSurface({
+  plugins: [harnessContract()],
+  roles: {
+    user: defineSurface({
       clientToServer: {
         'demo.echo': { input: z.object({ text: z.string() }), output: z.object({ echoed: z.string() }) },
       },
     }),
-  ),
-  roles: { user: {} },
+  },
 })
 
 const fakeRunner =
@@ -69,35 +68,30 @@ function fakeThreadStore(): ThreadStore {
   }
 }
 
-async function startHost(harness: Harness) {
+async function startHost(engine: Harness) {
   const httpServer: Server = createServer()
   const srv = createSuperLineServer(hostContract, {
     transports: [webSocketServerTransport({ server: httpServer, path: '/ws' })],
-    // The HOST owns auth — its ctx just has to extend HarnessCtx, and identify
-    // must return ctx.userId: store ACL grants key on it (principal falls back
-    // to the random conn.id otherwise, and every tree read is denied).
+    // The HOST owns auth — its ctx just carries userId (the collection principal)
+    // + resourceId; identify returns userId. With @super-line/plugin-auth these
+    // come from the session instead.
     authenticate: () => ({ role: 'user' as const, ctx: { userId: 'u1', resourceId: 'res-1' } }),
     identify: (conn) => (conn.ctx as { userId: string }).userId,
-    stores: { ...(await harnessStores({ type: 'memory' })) },
+    collections: memoryCollections(),
+    plugins: [harness(engine)],
   })
-  const mount = mountHarness(srv, harness)
-  srv.implement({
-    shared: {
-      ...mount.handlers,
-      'demo.echo': async ({ text }) => ({ echoed: text.toUpperCase() }),
-    },
-    user: {},
-  })
+  // harness.* is owned by the plugin (subtracted) — the host only implements its own.
+  srv.implement({ user: { 'demo.echo': async ({ text }) => ({ echoed: text.toUpperCase() }) } })
   await new Promise<void>((resolve) => httpServer.listen(PORT, resolve))
-  return { httpServer, mount }
+  return { httpServer, srv }
 }
 
 function mkClient() {
   return createSuperLineClient(hostContract, {
     transport: webSocketClientTransport({ url: URL }),
     role: 'user',
-    stores: { 'harness.node': memoryStoreClient(), 'harness.thread': memoryStoreClient() },
-  })
+    params: { userId: 'u1', resourceId: 'res-1' },
+  } as never)
 }
 
 let cleanup: (() => void) | null = null
@@ -106,13 +100,13 @@ afterEach(() => {
   cleanup = null
 })
 
-describe('composition (harness mounted in a host super-line server)', () => {
-  it('drives the host surface AND a full harness turn over one socket', async () => {
-    const { httpServer, mount } = await startHost(buildHarness())
+describe('composition (harness plugin in a host super-line server)', () => {
+  it('drives the host surface AND a full harness turn over one socket + one backend', async () => {
+    const { httpServer, srv } = await startHost(buildHarness())
     const client = mkClient()
     cleanup = () => {
       client.close()
-      mount.close()
+      void srv.close()
       httpServer.close()
     }
 
@@ -123,7 +117,7 @@ describe('composition (harness mounted in a host super-line server)', () => {
     const events: HarnessEvent[] = []
     let prev: ClientTree = emptyTree()
     let done = false
-    const stop = subscribeTree(client, 'ct1', (tree) => {
+    const stop = subscribeTree(client as never, 'ct1', (tree) => {
       for (const e of diffTree(prev, tree)) {
         events.push(e)
         if (e.type === 'node_end' && e.parentNodeId === null) done = true
@@ -141,25 +135,29 @@ describe('composition (harness mounted in a host super-line server)', () => {
     expect(prev.nodes[root.nodeId]?.text).toBe('composed reply')
   })
 
-  it('lazy resource-room join: a second tab that listed threads gets threadCreated', async () => {
-    const { httpServer, mount } = await startHost(buildHarness(fakeThreadStore()))
+  it('reflects a created thread as a harness.threads row to a second connection', async () => {
+    const { httpServer, srv } = await startHost(buildHarness(fakeThreadStore()))
     const a = mkClient()
     const b = mkClient()
     cleanup = () => {
       a.close()
       b.close()
-      mount.close()
+      void srv.close()
       httpServer.close()
     }
 
-    const created: unknown[] = []
-    b.on('harness.threadCreated', (p) => void created.push(p))
-    // No onConnection hook exists under composition — listing threads is what
-    // puts B's connection in the resource room.
-    await b['harness.listThreads']({})
+    const bThreads = (b as unknown as {
+      collection(n: string): { subscribe(q?: unknown): { rows(): { id: string }[]; subscribe(cb: () => void): () => void; ready: Promise<void> } }
+    }).collection('harness.threads').subscribe({ filter: eq('resourceId', 'res-1') })
+    bThreads.subscribe(() => {})
+    await bThreads.ready
 
     const { threadId } = await a['harness.createThread']({ title: 'Composed' })
-    for (let i = 0; i < 200 && created.length === 0; i++) await sleep(10)
-    expect(created[0]).toMatchObject({ id: threadId, resourceId: 'res-1' })
+    let seen = false
+    for (let i = 0; i < 200 && !seen; i++) {
+      await sleep(10)
+      seen = bThreads.rows().some((r) => r.id === threadId)
+    }
+    expect(seen).toBe(true)
   })
 })

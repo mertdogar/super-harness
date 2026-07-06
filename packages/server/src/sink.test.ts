@@ -1,110 +1,157 @@
-// The sink's new logic vs the old co-writer: coalesce a burst of stream events
-// into one write (the final doc), and merge a restart base into the thread doc.
+// The collections writer: structural rows persist, running-string deltas dedup
+// to no-ops (model c), tool rows split out, thread metadata + turns co-merge,
+// pendingResume parks/clears, and a CONFLICT insert falls through to update.
 // End-to-end fan-out is covered by wire.test.ts on the memory backend.
 
-import { describe, expect, it, vi } from 'vitest'
-import { superlineTreeSink } from './sink'
+import { describe, expect, it } from 'vitest'
+import type { NodeState } from '@super-harness/shared'
+import { collectionsTreeSink } from './sink'
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
 
-function fakeNs() {
-  const created: Array<{ id: string; data: unknown; rules: unknown }> = []
-  const writes: Array<{ id: string; data: unknown }> = []
-  let readData: unknown
-  const ns = {
-    create: async (id: string, data: unknown, rules?: unknown) => void created.push({ id, data, rules }),
-    read: async (_id: string) => (readData === undefined ? undefined : { data: readData }),
-    write: async (id: string, data: unknown) => void writes.push({ id, data }),
+function fakeCol() {
+  const inserts: Array<{ id: string }> = []
+  const updates: Array<{ id: string }> = []
+  const deletes: string[] = []
+  const rows = new Map<string, { id: string }>()
+  const handle = {
+    insert: async (row: unknown) => {
+      const r = row as { id: string }
+      if (rows.has(r.id)) throw Object.assign(new Error('conflict'), { code: 'CONFLICT' })
+      rows.set(r.id, r)
+      inserts.push(r)
+    },
+    update: async (row: unknown) => {
+      const r = row as { id: string }
+      rows.set(r.id, r)
+      updates.push(r)
+    },
+    delete: async (id: string) => {
+      rows.delete(id)
+      deletes.push(id)
+    },
+    read: async (id: string) => rows.get(id),
+    snapshot: async () => [...rows.values()],
   }
-  return { ns, created, writes, setRead: (d: unknown) => (readData = d) }
+  return { handle, inserts, updates, deletes, rows }
 }
 
-describe('superlineTreeSink', () => {
-  it('creates a node once and coalesces a burst into a single final write', async () => {
-    const node = fakeNs()
-    const thread = fakeNs()
-    const sink = superlineTreeSink({
-      nodeStore: node.ns as never,
-      threadStore: thread.ns as never,
-      threadId: 't',
-      grantTo: () => ['u1'],
-      flushMs: 10,
-    })
+function harnessNodes(overrides: Partial<NodeState> & { nodeId: string }): NodeState {
+  return {
+    parentNodeId: null,
+    depth: 0,
+    status: 'running',
+    reasoning: '',
+    text: '',
+    toolOrder: [],
+    tools: {},
+    childOrder: [],
+    ...overrides,
+  }
+}
 
-    // A tight burst — one event per streamed token — all land before flushMs.
-    for (let i = 0; i < 20; i++) sink.writeNode({ nodeId: 'n1', text: 'x'.repeat(i) } as never)
+function makeSink() {
+  const nodes = fakeCol()
+  const tools = fakeCol()
+  const threads = fakeCol()
+  const map: Record<string, ReturnType<typeof fakeCol>['handle']> = {
+    'harness.nodes': nodes.handle,
+    'harness.tools': tools.handle,
+    'harness.threads': threads.handle,
+  }
+  const sink = collectionsTreeSink({
+    collections: (n) => map[n],
+    threadId: 't1',
+    nodes: 'harness.nodes',
+    tools: 'harness.tools',
+    threads: 'harness.threads',
+  })
+  return { sink, nodes, tools, threads }
+}
 
-    await sleep(0) // let the create microtask run (flush timer hasn't fired yet)
-    // First event creates the Resource (with its read grant); no write yet.
-    expect(node.created).toHaveLength(1)
-    expect(node.created[0]).toMatchObject({ id: 'n1', rules: { u1: { read: true } } })
-    expect(node.writes).toHaveLength(0)
-
-    await sleep(30)
-    // The whole burst coalesced to ONE trailing write carrying the final doc.
-    expect(node.writes).toHaveLength(1)
-    expect(node.writes[0]).toMatchObject({ id: 'n1', data: { nodeId: 'n1', text: 'x'.repeat(19) } })
+describe('collectionsTreeSink', () => {
+  it('inserts a node once; a burst of running-string deltas dedups to no writes', async () => {
+    const { sink, nodes } = makeSink()
+    for (let i = 0; i < 20; i++) sink.writeNode(harnessNodes({ nodeId: 'n1', text: 'x'.repeat(i) }))
+    await sleep(5)
+    // One insert (structural); the growing text is NOT persisted while running,
+    // so every later writeNode dedups against the same empty-string projection.
+    expect(nodes.inserts).toHaveLength(1)
+    expect(nodes.updates).toHaveLength(0)
+    expect(nodes.rows.get('n1')).toMatchObject({ id: 'n1', status: 'running', text: '', reasoning: '' })
   })
 
-  it('separate bursts each flush; the final doc always lands', async () => {
-    const node = fakeNs()
-    const thread = fakeNs()
-    const sink = superlineTreeSink({
-      nodeStore: node.ns as never,
-      threadStore: thread.ns as never,
-      threadId: 't',
-      grantTo: () => [],
-      flushMs: 10,
-    })
-
-    sink.writeNode({ nodeId: 'n1', text: 'a' } as never) // create
-    sink.writeNode({ nodeId: 'n1', text: 'ab' } as never) // burst 1
-    await sleep(30)
-    sink.writeNode({ nodeId: 'n1', text: 'abc' } as never) // burst 2
-    await sleep(30)
-
-    expect(node.created).toHaveLength(1)
-    expect(node.writes.map((w) => (w.data as { text: string }).text)).toEqual(['ab', 'abc'])
+  it('persists the final strings once the node goes terminal', async () => {
+    const { sink, nodes } = makeSink()
+    sink.writeNode(harnessNodes({ nodeId: 'n1', text: 'hi', reasoning: 'why' }))
+    await sleep(5)
+    sink.writeNode(harnessNodes({ nodeId: 'n1', status: 'complete', text: 'hi there', reasoning: 'because', usage: { totalTokens: 9 } }))
+    await sleep(5)
+    expect(nodes.updates.at(-1)).toMatchObject({ id: 'n1', status: 'complete', text: 'hi there', reasoning: 'because', usage: { totalTokens: 9 } })
   })
 
-  it('swallows a benign CONFLICT create but logs a genuine create failure', async () => {
-    const err = vi.spyOn(console, 'error').mockImplementation(() => {})
-    try {
-      const thread = fakeNs()
-      const conflict = { ...fakeNs().ns, create: async () => Promise.reject({ code: 'CONFLICT' }) }
-      const s1 = superlineTreeSink({ nodeStore: conflict as never, threadStore: thread.ns as never, threadId: 't', grantTo: () => [], flushMs: 10 })
-      s1.writeNode({ nodeId: 'n1', text: 'a' } as never)
-      await sleep(5)
-      expect(err).not.toHaveBeenCalled() // CONFLICT is expected (restart / pre-created)
-
-      const boom = { ...fakeNs().ns, create: async () => Promise.reject({ code: 'INTERNAL', message: 'driver down' }) }
-      const s2 = superlineTreeSink({ nodeStore: boom as never, threadStore: thread.ns as never, threadId: 't', grantTo: () => [], flushMs: 10 })
-      s2.writeNode({ nodeId: 'n2', text: 'a' } as never)
-      await sleep(5)
-      expect(err).toHaveBeenCalled() // a real failure must not be masked
-    } finally {
-      err.mockRestore()
-    }
+  it('writes tool rows in their own collection; argsText is empty while streaming, final when settled', async () => {
+    const { sink, tools } = makeSink()
+    sink.writeNode(
+      harnessNodes({
+        nodeId: 'n1',
+        toolOrder: ['c1'],
+        tools: { c1: { toolCallId: 'c1', toolName: 'search', status: 'input-streaming', argsText: '{"q":' } },
+      }),
+    )
+    await sleep(5)
+    expect(tools.rows.get('c1')).toMatchObject({ id: 'c1', nodeId: 'n1', threadId: 't1', status: 'input-streaming', argsText: '' })
+    sink.writeNode(
+      harnessNodes({
+        nodeId: 'n1',
+        toolOrder: ['c1'],
+        tools: { c1: { toolCallId: 'c1', toolName: 'search', status: 'output-available', argsText: '{"q":"x"}', args: { q: 'x' }, result: 'ok' } },
+      }),
+    )
+    await sleep(5)
+    expect(tools.rows.get('c1')).toMatchObject({ status: 'output-available', argsText: '{"q":"x"}', result: 'ok' })
   })
 
-  it('merges the persisted restart base into the thread doc (turns + nodes)', async () => {
-    const node = fakeNs()
-    const thread = fakeNs()
-    thread.setRead({ turns: ['old'], nodes: { old: { nodeId: 'old' } } })
-    const sink = superlineTreeSink({
-      nodeStore: node.ns as never,
-      threadStore: thread.ns as never,
-      threadId: 't',
-      grantTo: () => [],
-      flushMs: 10,
-    })
+  it('co-merges writeThread turns/todos with setThreadMeta metadata on one row', async () => {
+    const { sink, threads } = makeSink()
+    sink.setThreadMeta({ resourceId: 'res-1', title: 'Trip', createdAt: 5 })
+    await sleep(5)
+    sink.writeThread({ turns: ['r'], nodes: {} } as never)
+    await sleep(5)
+    const row = threads.rows.get('t1') as unknown as { turns: string[]; title?: string; resourceId?: string }
+    expect(row).toMatchObject({ id: 't1', title: 'Trip', resourceId: 'res-1', turns: ['r'] })
+  })
 
-    sink.writeThread({ turns: ['new'], nodes: { new: { nodeId: 'new' } } } as never)
-    await sleep(0) // let the async prepare(read)→create run
+  it('parks pendingResume on the node, then clears it once the tool settles', async () => {
+    const { sink, nodes } = makeSink()
+    sink.setPending('n1', 'ask-1', { resumeSchema: '{"type":"string"}', request: { q: 'ok?' } })
+    sink.writeNode(
+      harnessNodes({
+        nodeId: 'n1',
+        toolOrder: ['ask-1'],
+        tools: { 'ask-1': { toolCallId: 'ask-1', toolName: 'ask_user', status: 'input-available', argsText: '' } },
+      }),
+    )
+    await sleep(5)
+    expect(nodes.rows.get('n1')).toMatchObject({ pendingResume: { resumeSchema: '{"type":"string"}', request: { q: 'ok?' } } })
 
-    expect(thread.created).toHaveLength(1)
-    const created = thread.created[0].data as { turns: string[]; nodes: Record<string, unknown> }
-    expect(created.turns).toEqual(['old', 'new'])
-    expect(Object.keys(created.nodes).sort()).toEqual(['new', 'old'])
+    sink.writeNode(
+      harnessNodes({
+        nodeId: 'n1',
+        status: 'complete',
+        toolOrder: ['ask-1'],
+        tools: { 'ask-1': { toolCallId: 'ask-1', toolName: 'ask_user', status: 'output-available', argsText: '', result: 'yes' } },
+      }),
+    )
+    await sleep(5)
+    expect((nodes.rows.get('n1') as Record<string, unknown> | undefined)?.pendingResume).toBeUndefined()
+  })
+
+  it('falls through a CONFLICT insert to an update (restart safety)', async () => {
+    const { sink, nodes } = makeSink()
+    nodes.rows.set('n1', { id: 'n1' }) // pre-existing row (server restart)
+    sink.writeNode(harnessNodes({ nodeId: 'n1', status: 'complete', text: 'recovered' }))
+    await sleep(5)
+    expect(nodes.updates.at(-1)).toMatchObject({ id: 'n1', text: 'recovered' })
   })
 })

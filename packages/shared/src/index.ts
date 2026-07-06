@@ -1,5 +1,7 @@
 export {
   harnessContract,
+  harnessSurface,
+  type HarnessSurface,
   contract,
   type Contract,
   HARNESS_THREADS,
