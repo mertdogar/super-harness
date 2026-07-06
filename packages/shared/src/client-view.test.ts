@@ -236,6 +236,27 @@ describe('subscribeTree', () => {
     stop()
   })
 
+  it('keeps toolOrder coherent when a tool row lags the node row', () => {
+    const { client, put } = fakeClient()
+    let latest: ClientTree = emptyTree()
+    const stop = subscribeTree(client, 't1', (tree) => (latest = tree))
+
+    put('harness.threads', threadRow({ id: 't1', turns: ['r'] }))
+    // Node row lists c1 in toolOrder, but its tool row (a separate collection)
+    // hasn't landed yet — the two rows update independently.
+    put('harness.nodes', nodeRow({ id: 'r', threadId: 't1', parentNodeId: null, depth: 0, toolOrder: ['c1'] }))
+
+    // The assembled node must never reference a tool that isn't present: a
+    // consumer reading tools[id].textOffset for every id in toolOrder would crash.
+    const r = latest.nodes.r!
+    expect(r.toolOrder.every((id) => r.tools[id])).toBe(true)
+
+    // Once the tool row arrives, it reappears in order.
+    put('harness.tools', toolRow({ id: 'c1', threadId: 't1', nodeId: 'r', toolName: 'search', status: 'input-available' }))
+    expect(latest.nodes.r?.toolOrder).toEqual(['c1'])
+    stop()
+  })
+
   it('streams tool argsText from toolInputDelta while input-streaming', () => {
     const { client, put, emit } = fakeClient()
     let latest: ClientTree = emptyTree()

@@ -127,7 +127,9 @@ export function subscribeTree(
         status: row.status,
         reasoning: terminal ? row.reasoning : (liveReasoning.get(row.id) ?? ''),
         text: terminal ? row.text : (liveText.get(row.id) ?? ''),
-        toolOrder: row.toolOrder,
+        // A tool row (separate collection) can lag its node's toolOrder — drop
+        // ids whose row hasn't landed so consumers never read an absent tool.
+        toolOrder: row.toolOrder.filter((tid) => tools[tid]),
         tools,
         childOrder: row.childOrder,
         usage: row.usage,
