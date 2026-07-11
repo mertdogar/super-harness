@@ -43,7 +43,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "lint": "oxlint",
     "format": "oxfmt",
-    "format:check": "oxfmt --check"
+    "format:check": "oxfmt --check",
+    "docs:dev": "pnpm -F @super-harness/docs dev",
+    "docs:build": "pnpm -F @super-harness/docs build"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",
