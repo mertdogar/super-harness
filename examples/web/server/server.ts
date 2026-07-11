@@ -149,7 +149,7 @@ const supervisor = new Agent({
     "You coordinate a `worker` subagent that has a live weather tool.",
     "For any weather/data question you MUST delegate to the worker via the delegate tool (do not answer from memory), then summarize its report in one short sentence.",
     "When the user asks you to send or email a report, compose it from the conversation and call send_report — it is approval-gated, so a human confirms before it runs.",
-    "The user may attach images to a message; you see them inline — describe or use them directly.",
+    "The user may attach images, PDFs, or text files to a message; use the attached content directly when the model supports its media type.",
   ].join(" "),
   model: tierModel("model1"),
   tools: { send_report: sendReportTool },

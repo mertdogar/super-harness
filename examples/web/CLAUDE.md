@@ -14,8 +14,8 @@ Two workspace packages (glob `examples/web/*`): `server/` (Hono +
   the delegated worker per thread. Fast = haiku everywhere; Smart = sonnet
   supervisor. A mode can carry instruction overlays too (Fast does).
 - **Attachments are live-only chips.** The composer's `PromptInput` converts
-  picked files to data URLs on submit (registry behavior); `onSubmit` maps them
-  to wire `FileAttachment`s (`image/*` only, 5MB cap) and calls
+  images, PDFs, and text files to data URLs on submit (registry behavior);
+  `onSubmit` maps them to wire `FileAttachment`s (5 MB per-file cap) and calls
   `harness.send(text, files)`. Chips render from client state, FIFO-matched to
   the next new root turn with the same task text — attachments are NOT
   persisted in the tree, so a reload shows just the text.

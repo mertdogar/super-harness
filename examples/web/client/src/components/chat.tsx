@@ -1,6 +1,6 @@
 // The conversation pane: turns from the tree (user bubble = root node's task,
 // assistant body = recursive NodeView), plus the composer. When an ask_user
-// suspension is pending the SAME composer becomes the reply box. Image
+// suspension is pending the SAME composer becomes the reply box. File
 // attachments ride harness.send(text, files) — the PromptInput already
 // converts picked files to data URLs on submit — and render as LIVE-ONLY
 // chips (attachments aren't persisted in the tree; a reload shows just text).
@@ -47,7 +47,7 @@ function toWireFiles(files: PromptInputMessage["files"]): FileAttachment[] {
 function AttachButton() {
   const attachments = usePromptInputAttachments()
   return (
-    <PromptInputButton onClick={() => attachments.openFileDialog()} aria-label="Attach images">
+    <PromptInputButton onClick={() => attachments.openFileDialog()} aria-label="Attach files">
       <PaperclipIcon className="size-4" />
     </PromptInputButton>
   )
@@ -187,11 +187,16 @@ export function Chat({ state }: { state: HarnessState }) {
             Start a new thread
           </button>
         ) : (
-          <PromptInput onSubmit={onSubmit} accept="image/*" multiple maxFileSize={5 * 1024 * 1024}>
+          <PromptInput
+            onSubmit={onSubmit}
+            accept="image/*,application/pdf,text/*"
+            multiple
+            maxFileSize={5 * 1024 * 1024}
+          >
             <PromptInputAttachments>{(file) => <PromptInputAttachment data={file} />}</PromptInputAttachments>
             <PromptInputTextarea
               autoFocus
-              placeholder={pendingAsk ? "Reply to the agent…" : "Say something — attach an image if you like…"}
+              placeholder={pendingAsk ? "Reply to the agent…" : "Say something — attach a file if you like…"}
             />
             {/* PromptInputFooter is the block-end addon that flips the InputGroup
                 to column layout — a plain div here collapses the textarea. */}
