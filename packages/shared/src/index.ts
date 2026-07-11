@@ -19,6 +19,8 @@ export {
   type ApprovalDecision,
   modeInfoSchema,
   type ModeInfo,
+  fileAttachmentSchema,
+  type FileAttachment,
   threadInfoSchema,
   type ThreadInfo,
   nodeStatusSchema,

@@ -4,7 +4,7 @@
 // type via the AgentRunner seam, so both a real `agent.stream` and a fake
 // (self-check) drive it identically.
 
-import type { HarnessEvent, TokenUsage } from '@super-harness/shared'
+import type { FileAttachment, HarnessEvent, TokenUsage } from '@super-harness/shared'
 import { createChunkAdapter, type ChunkLike, type Suspension } from './chunk-adapter'
 
 export interface StreamResult {
@@ -28,6 +28,13 @@ export interface RunOptions {
   // as Mastra's requireToolApproval; gated calls surface as tool-call-approval
   // chunks handled via runNode's onApproval.
   requireApproval?: (toolName: string) => boolean
+  // The turn's host context (EngineConfig.requestContext) — opaque here; the
+  // Mastra runner copies its entries into the node's RequestContext beneath the
+  // harness runtime key. Same value for every node of the turn.
+  requestContext?: unknown
+  // Attachments folded into the user message (root turns only): image/* as
+  // image parts, other mimeTypes as file parts.
+  files?: FileAttachment[]
 }
 
 export type AgentRunner = (opts: RunOptions) => Promise<StreamResult>

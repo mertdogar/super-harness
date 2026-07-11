@@ -1,6 +1,6 @@
 {
   "name": "@super-harness/server",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Batteries-included super-line binding for Super Harness: the harness() plugin and standalone serve() expose a core Harness over a super-line server with durable harness.* collections, the wire contract, and HITL suspension/approval broadcast.",
   "keywords": [
     "agent",
@@ -40,7 +40,21 @@
     ".": "./src/index.ts"
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
+      }
+    }
   },
   "scripts": {
     "build": "tsup",
@@ -49,8 +63,8 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@super-harness/core": "workspace:*",
-    "@super-harness/shared": "workspace:*"
+    "@super-harness/core": "workspace:^",
+    "@super-harness/shared": "workspace:^"
   },
   "peerDependencies": {
     "@mastra/core": "^1.49.0-alpha.2",

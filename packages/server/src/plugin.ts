@@ -24,6 +24,7 @@ import {
   membershipId,
   harnessThreadRoom,
   type ApprovalDecision,
+  type FileAttachment,
   type HarnessSurface,
   type MemberRole,
   type MembershipRow,
@@ -212,9 +213,12 @@ export function harness(engine: Harness, opts: HarnessPluginOptions = {}): Super
           })
         return ok
       },
-      'harness.sendMessage': async ({ threadId, message }: { threadId: string; message: string }, connCtx: unknown) => {
+      'harness.sendMessage': async (
+        { threadId, message, files }: { threadId: string; message: string; files?: FileAttachment[] },
+        connCtx: unknown,
+      ) => {
         await requireDriver(threadId, connCtx as HarnessCtx)
-        void engine.sendMessage({ threadId, content: message }).catch((e) => console.error('[harness] run failed', e))
+        void engine.sendMessage({ threadId, content: message, files }).catch((e) => console.error('[harness] run failed', e))
         return ok
       },
       'harness.resumeMessage': async (
@@ -250,8 +254,15 @@ export function harness(engine: Harness, opts: HarnessPluginOptions = {}): Super
         modes: engine.listModes().map((m) => ({ id: m.id, name: m.name, description: m.description })),
         defaultModeId: engine.defaultModeId,
       }),
-      'harness.listThreads': async (_input: { resourceId?: string }, connCtx: unknown) => ({
-        threads: await engine.threads.list((connCtx as HarnessCtx).resourceId),
+      // A connection-pinned resourceId is AUTHORITATIVE (the host's authenticate
+      // validated it — honoring the request's would let any client enumerate or
+      // write another tenant's scope). Hosts that leave ctx.resourceId unset opt
+      // into request-level scoping instead: clients switch resources per call,
+      // no reconnect. Note this covers the REQUEST surface only — a
+      // harness.threads collection subscription's read filter is frozen per
+      // connection from ctx, so live sidebar reactivity follows ctx, not requests.
+      'harness.listThreads': async (input: { resourceId?: string }, connCtx: unknown) => ({
+        threads: await engine.threads.list((connCtx as HarnessCtx).resourceId ?? input.resourceId),
       }),
       'harness.createThread': async (
         input: { threadId?: string; resourceId?: string; title?: string },

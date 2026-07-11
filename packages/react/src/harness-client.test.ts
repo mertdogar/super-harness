@@ -435,4 +435,20 @@ describe("HarnessClient state machine", () => {
     writeTree(f, "t2", ["r2"], { r2: node({ nodeId: "r2", text: "new", status: "complete" }) })
     expect(client.getSnapshot().tree.turns).toEqual(["r2"])
   })
+
+  it("send forwards file attachments to the wire, including attachment-only sends", async () => {
+    const sent: unknown[] = []
+    const { client } = await setup({
+      "harness.sendMessage": async (input: unknown) => (sent.push(input), { ok: true }),
+    })
+    const png = { url: "data:image/png;base64,AAAA", mimeType: "image/png" }
+    await client.send("what is this?", [png])
+    expect(sent[0]).toMatchObject({ threadId: "t1", message: "what is this?", files: [png] })
+
+    await client.send("", [png]) // attachments count as content
+    expect(sent[1]).toMatchObject({ threadId: "t1", message: "", files: [png] })
+
+    await client.send("") // nothing at all still short-circuits
+    expect(sent).toHaveLength(2)
+  })
 })

@@ -866,7 +866,7 @@ importers:
   packages/core:
     dependencies:
       '@super-harness/shared':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../shared
       nanoid:
         specifier: ^5.1.7
@@ -885,7 +885,7 @@ importers:
   packages/react:
     dependencies:
       '@super-harness/shared':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../shared
     devDependencies:
       '@super-line/client':
@@ -907,10 +907,10 @@ importers:
   packages/server:
     dependencies:
       '@super-harness/core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../core
       '@super-harness/shared':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../shared
     devDependencies:
       '@electric-sql/pglite':

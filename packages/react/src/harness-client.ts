@@ -18,6 +18,7 @@ import {
   type ApprovalDecision,
   type ApprovalRequired,
   type ClientTree,
+  type FileAttachment,
   type ModeInfo,
   type NodeState,
   type Suspended,
@@ -50,7 +51,7 @@ export interface WireCollection {
 // assignability from real merged-contract clients holds.
 export interface HarnessWire {
   "harness.join"(input: { threadId: string }): Promise<{ ok: boolean }>
-  "harness.sendMessage"(input: { threadId: string; message: string }): Promise<{ ok: boolean }>
+  "harness.sendMessage"(input: { threadId: string; message: string; files?: FileAttachment[] }): Promise<{ ok: boolean }>
   "harness.resumeMessage"(input: { threadId: string; toolCallId?: string; resumeData?: unknown }): Promise<{ ok: boolean }>
   "harness.abort"(input: { threadId: string }): Promise<{ ok: boolean }>
   "harness.respondToApproval"(input: {
@@ -381,12 +382,13 @@ export class HarnessClient {
     }, 1000)
   }
 
-  async send(text: string): Promise<void> {
+  async send(text: string, files?: FileAttachment[]): Promise<void> {
     const message = text.trim()
-    if (!message || !this.#client) return
+    // Attachments count as content — a files-only send must go through.
+    if ((!message && !files?.length) || !this.#client) return
     try {
       // Busy thread? The server queues it and broadcasts followUpQueued.
-      await this.#client["harness.sendMessage"]({ threadId: this.#state.threadId, message })
+      await this.#client["harness.sendMessage"]({ threadId: this.#state.threadId, message, files })
       this.#set({ notice: null })
     } catch (error) {
       this.#set({ notice: errMessage(error) })

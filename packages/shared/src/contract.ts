@@ -46,6 +46,16 @@ export const modeInfoSchema = z.object({
 })
 export type ModeInfo = z.infer<typeof modeInfoSchema>
 
+// Inline attachment on sendMessage: a data URL (or fetchable URL) folded into
+// the user message. image/* (or no mimeType) becomes an image content part;
+// any other mimeType becomes a file part (PDFs, text — whatever the provider
+// accepts).
+export const fileAttachmentSchema = z.object({
+  url: z.string(),
+  mimeType: z.string().optional(),
+})
+export type FileAttachment = z.infer<typeof fileAttachmentSchema>
+
 export const threadInfoSchema = z.object({
   id: z.string(),
   resourceId: z.string(),
@@ -148,7 +158,10 @@ const okOut = z.object({ ok: z.boolean() })
 // check inside the handler, NOT a contract-role split.
 const requests = {
   'harness.join': { input: z.object({ threadId: z.string() }), output: okOut },
-  'harness.sendMessage': { input: z.object({ threadId: z.string(), message: z.string() }), output: okOut },
+  'harness.sendMessage': {
+    input: z.object({ threadId: z.string(), message: z.string(), files: z.array(fileAttachmentSchema).optional() }),
+    output: okOut,
+  },
   'harness.resumeMessage': {
     input: z.object({ threadId: z.string(), toolCallId: z.string().optional(), resumeData: z.unknown() }),
     output: okOut,

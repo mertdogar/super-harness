@@ -1,7 +1,7 @@
 {
   "name": "@super-harness/react",
-  "version": "0.0.0",
-  "description": "Headless React client for Super Harness: a framework-free HarnessClient (join, live tree via subscribeTree, ask_user/approval state machine, threads, modes) plus provider + hooks bindings. No components, no styling — bring your own UI.",
+  "version": "0.1.0",
+  "description": "Headless React client for Super Harness: a framework-free HarnessClient (join, live tree via subscribeTree, ask_user/approval state machine, threads, modes) plus provider + hooks bindings. No components, no styling \u2014 bring your own UI.",
   "keywords": [
     "agent",
     "agents",
@@ -43,14 +43,24 @@
     "types": "./dist/index.d.ts",
     "exports": {
       ".": {
-        "types": "./dist/index.d.ts",
-        "import": "./dist/index.js",
-        "require": "./dist/index.cjs"
+        "import": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        },
+        "require": {
+          "types": "./dist/index.d.cts",
+          "default": "./dist/index.cjs"
+        }
       },
       "./client": {
-        "types": "./dist/harness-client.d.ts",
-        "import": "./dist/harness-client.js",
-        "require": "./dist/harness-client.cjs"
+        "import": {
+          "types": "./dist/harness-client.d.ts",
+          "default": "./dist/harness-client.js"
+        },
+        "require": {
+          "types": "./dist/harness-client.d.cts",
+          "default": "./dist/harness-client.cjs"
+        }
       }
     }
   },
@@ -61,7 +71,7 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "@super-harness/shared": "workspace:*"
+    "@super-harness/shared": "workspace:^"
   },
   "peerDependencies": {
     "@super-line/client": "^0.9.0",

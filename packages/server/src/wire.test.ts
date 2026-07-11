@@ -12,7 +12,7 @@ import { webSocketServerTransport, webSocketClientTransport } from '@super-line/
 import { eq } from '@super-line/core'
 import { contract, diffTree, emptyTree, subscribeTree, type ClientTree, type HarnessEvent } from '@super-harness/shared'
 import { Harness, type SubagentEntry, type ThreadRecord, type ThreadStore } from '@super-harness/core'
-import type { AgentRunner, NodeEnvelope, HarnessRuntime, ChunkLike } from '@super-harness/core'
+import type { AgentRunner, NodeEnvelope, HarnessRuntime, ChunkLike, RunOptions } from '@super-harness/core'
 import { serve } from './serve'
 
 const PORT = 4123
@@ -327,6 +327,75 @@ describe('wire (serve() over ws, via collections)', () => {
     }
     bThreads.stop()
     expect(gone).toBe(true)
+  })
+
+  it('carries sendMessage file attachments through the plugin into the engine run', async () => {
+    const seen: RunOptions[] = []
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      makeRunner: () => async (opts) => {
+        seen.push(opts)
+        return { fullStream: (async function* () { yield { type: 'text-delta', payload: { text: 'ok' } } })() }
+      },
+    })
+    const harness = new Harness({ supervisorType: 'supervisor', registry, maxDepth: 1 })
+    const httpServer: Server = createServer()
+    const { close } = await serve(harness, {
+      storage: { type: 'memory' },
+      transports: [webSocketServerTransport({ server: httpServer, path: '/super-line' })],
+    })
+    await new Promise<void>((resolve) => httpServer.listen(PORT, resolve))
+
+    const client = mkClient({ userId: 'local' })
+    cleanup = () => {
+      client.close()
+      close()
+      httpServer.close()
+    }
+
+    await client['harness.join']({ threadId: 'tf' })
+    const png = { url: 'data:image/png;base64,AAAA', mimeType: 'image/png' }
+    await client['harness.sendMessage']({ threadId: 'tf', message: 'what is this?', files: [png] })
+    // The handler fires the run without awaiting it — poll for the runner call.
+    for (let i = 0; i < 200 && seen.length === 0; i++) await sleep(10)
+    expect(seen[0]?.files).toEqual([png])
+    expect(seen[0]?.input).toBe('what is this?')
+  })
+
+  // Resource scoping: a connection-pinned resourceId is authoritative (the
+  // host's authenticate validated it — a request must not read or write another
+  // tenant's scope); an UNPINNED connection opts into request-level scoping,
+  // so clients can switch resources per call without reconnecting.
+  it('scopes listThreads/createThread by connection resourceId, falling back to the request', async () => {
+    const harness = buildHarness(fakeThreadStore())
+    const httpServer: Server = createServer()
+    const { close } = await serve(harness, {
+      storage: { type: 'memory' },
+      transports: [webSocketServerTransport({ server: httpServer, path: '/super-line' })],
+    })
+    await new Promise<void>((resolve) => httpServer.listen(PORT, resolve))
+
+    const pinned = mkClient({ userId: 'u1', resourceId: 'scene-1' })
+    const roaming = mkClient({ userId: 'u2' })
+    cleanup = () => {
+      pinned.close()
+      roaming.close()
+      close()
+      httpServer.close()
+    }
+
+    // A pinned connection cannot escape its scope: the request resourceId is ignored.
+    const { threadId: escaped } = await pinned['harness.createThread']({ resourceId: 'scene-2', title: 'Escape?' })
+    const pinnedList = await pinned['harness.listThreads']({ resourceId: 'scene-2' })
+    expect(pinnedList.threads.map((t: { id: string }) => t.id)).toEqual([escaped]) // landed in scene-1, listed via scene-1
+
+    // An unpinned connection scopes per request.
+    const { threadId: r2 } = await roaming['harness.createThread']({ resourceId: 'scene-2', title: 'Other scene' })
+    const scoped = await roaming['harness.listThreads']({ resourceId: 'scene-2' })
+    expect(scoped.threads.map((t: { id: string }) => t.id)).toEqual([r2])
+    const other = await roaming['harness.listThreads']({ resourceId: 'scene-1' })
+    expect(other.threads.map((t: { id: string }) => t.id)).toEqual([escaped])
   })
 
   it('deleteThread purges the durable collection rows (thread + every node)', async () => {

@@ -8,4 +8,5 @@ export {
   type PendingApproval,
   type PendingAsk,
 } from "./harness-client"
+export type { FileAttachment } from "@super-harness/shared"
 export { HarnessProvider, useHarness, useHarnessClient } from "./react"

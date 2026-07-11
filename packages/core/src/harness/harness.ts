@@ -14,7 +14,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import type { ToolsInput } from '@mastra/core/agent'
 import type { MastraModelConfig } from '@mastra/core/llm'
 import { nanoid } from 'nanoid'
-import type { HarnessEvent, HarnessTree, TokenUsage } from '@super-harness/shared'
+import type { FileAttachment, HarnessEvent, HarnessTree, TokenUsage } from '@super-harness/shared'
 import type { Suspension } from './chunk-adapter'
 import { Projector } from './projector'
 import { runNode, type AgentRunner, type ApprovalRequest, type NodeEnvelope, type RunOptions, type StreamResult } from './run-node'
@@ -112,6 +112,14 @@ export interface SubagentEntry {
   makeRunner: (node: NodeEnvelope, runtime: HarnessRuntime) => AgentRunner
 }
 
+// What the per-turn context hook sees: the turn's thread/resource identity and
+// the resolved mode (its metadata carries host config like model tiers).
+export interface TurnContextArgs {
+  threadId: string
+  resource: string
+  mode?: HarnessMode
+}
+
 export interface EngineConfig {
   supervisorType: string
   registry: Map<string, SubagentEntry>
@@ -119,12 +127,20 @@ export interface EngineConfig {
   resourceFor?: (threadId: string) => string
   modes?: HarnessMode[]
   defaultModeId?: string
+  // Called once per turn (fresh runs AND resumes) before the first stream
+  // opens; the returned value rides RunOptions.requestContext into EVERY node
+  // runner of the turn — supervisor and subagents. Opaque to the engine. A
+  // throw here fails the turn before any node starts.
+  requestContext?: (args: TurnContextArgs) => unknown | Promise<unknown>
   permissions?: PermissionRules
   toolCategoryResolver?: (toolName: string) => ToolCategory | null
   threads?: ThreadStore
   // Resolves a gated tool call and returns the CONTINUATION stream — Mastra
   // suspends the run on a tool-call-approval chunk and approveToolCall/
   // declineToolCall resume it with a fresh stream the caller must keep driving.
+  // requestContext/runtime carry the turn's host context and the node's harness
+  // runtime into the continuation — without them the resumed stream would run
+  // on an empty RequestContext (default models, no host entries, no built-ins).
   resolveToolCall?: (args: {
     threadId: string
     resourceId: string
@@ -132,6 +148,8 @@ export interface EngineConfig {
     toolCallId: string
     approved: boolean
     message?: string
+    requestContext?: unknown
+    runtime?: HarnessRuntime
   }) => Promise<StreamResult | undefined>
   // Generates a title from the first user message. Called after a root turn
   // with real input settles on a thread that has none yet; the result is
@@ -148,9 +166,14 @@ interface GateDecision {
   aborted?: boolean
 }
 
+interface QueuedMessage {
+  content: string
+  files?: FileAttachment[]
+}
+
 interface ThreadState {
   projector: Projector
-  queue: string[]
+  queue: QueuedMessage[]
   running: boolean
   abort?: AbortController
   suspensions: Map<string, { runId: string; toolName: string }>
@@ -159,6 +182,9 @@ interface ThreadState {
   modeHydrated: boolean
   grants: { tools: Set<string>; categories: Set<ToolCategory> }
   yolo: boolean
+  // The current turn's host context (EngineConfig.requestContext), reachable by
+  // #spawnChild so subagent runners receive the same value as the root.
+  turnContext?: unknown
 }
 
 export class Harness {
@@ -219,18 +245,18 @@ export class Harness {
 
   // ── message loop ───────────────────────────────────────────────────────────
 
-  async sendMessage(args: { threadId: string; content: string }): Promise<SendResult> {
+  async sendMessage(args: { threadId: string; content: string; files?: FileAttachment[] }): Promise<SendResult> {
     const st = this.#state(args.threadId)
     if (st.running) {
-      st.queue.push(args.content)
+      st.queue.push({ content: args.content, files: args.files })
       this.#dispatch(args.threadId, { type: 'follow_up_queued', count: st.queue.length })
       return { status: 'queued', queued: st.queue.length }
     }
-    return this.#runTurn(args.threadId, args.content)
+    return this.#runTurn(args.threadId, args.content, args.files)
   }
 
   // Abort the running turn, drop the queue, and jump the new message in.
-  async steer(args: { threadId: string; content: string }): Promise<SendResult> {
+  async steer(args: { threadId: string; content: string; files?: FileAttachment[] }): Promise<SendResult> {
     const st = this.#state(args.threadId)
     this.abort(args.threadId)
     st.queue = []
@@ -281,9 +307,9 @@ export class Harness {
     return this.#drive(args.threadId, node, '', false, args.resumeData)
   }
 
-  async #runTurn(threadId: string, content: string): Promise<RunResult> {
+  async #runTurn(threadId: string, content: string, files?: FileAttachment[]): Promise<RunResult> {
     const node: NodeEnvelope = { nodeId: nanoid(), parentNodeId: null, depth: 0, agentType: this.cfg.supervisorType }
-    return this.#drive(threadId, node, content, true)
+    return this.#drive(threadId, node, content, true, undefined, files)
   }
 
   async #drive(
@@ -292,6 +318,7 @@ export class Harness {
     input: string,
     emitStart: boolean,
     resumeData?: unknown,
+    files?: FileAttachment[],
   ): Promise<RunResult> {
     const st = this.#state(threadId)
     st.running = true
@@ -299,14 +326,33 @@ export class Harness {
     try {
       const entry = this.#entry(this.cfg.supervisorType)
       const runtime = this.#makeRuntime(threadId, node)
-      const mode = await this.#currentMode(threadId)
+      const resource = this.#resource(threadId)
+      let mode: HarnessMode | undefined
+      try {
+        mode = await this.#currentMode(threadId)
+        // Resolved per turn — resumes included, so a host that builds per-turn
+        // state (credentials, toolsets, renderers) rebuilds it here too.
+        st.turnContext = await this.cfg.requestContext?.({ threadId, resource, mode })
+      } catch (err) {
+        // A pre-node failure must land in the tree — the wire fires sendMessage
+        // without awaiting it, so without these events the message just vanishes
+        // for every client. Announce, settle as errored, rethrow for in-process
+        // callers.
+        const message = err instanceof Error ? err.message : String(err)
+        if (emitStart) this.#emitNode(threadId, { ...node, type: 'node_start', task: input || undefined })
+        this.#emitNode(threadId, { ...node, type: 'error', message })
+        this.#emitNode(threadId, { ...node, type: 'node_end', reason: 'error' })
+        throw err
+      }
       const run: RunOptions = {
         input,
         threadId,
-        resource: this.#resource(threadId),
+        resource,
         maxSteps: entry.maxSteps,
         abortSignal: st.abort.signal,
         resumeData,
+        files,
+        requestContext: st.turnContext,
         modeInstructions: mode?.instructions,
         activeTools: mode?.availableTools,
         requireApproval: this.#approvalPredicate(threadId),
@@ -342,6 +388,8 @@ export class Harness {
             toolCallId: res.approval.toolCallId,
             approved: decision.approved,
             message: decision.message,
+            requestContext: st.turnContext,
+            runtime,
           })
           if (!continuation) return { status: 'done', text, usage: res.usage }
           runner = async () => continuation
@@ -394,7 +442,7 @@ export class Harness {
     const next = st?.queue.shift()
     if (next === undefined) return
     this.#dispatch(threadId, { type: 'follow_up_queued', count: st!.queue.length })
-    void this.sendMessage({ threadId, content: next }).catch((e) =>
+    void this.sendMessage({ threadId, content: next.content, files: next.files }).catch((e) =>
       console.error('[harness] queued follow-up failed', e),
     )
   }
@@ -438,6 +486,7 @@ export class Harness {
         resource: this.#resource(threadId),
         maxSteps: entry.maxSteps,
         abortSignal: this.#threads.get(threadId)?.abort?.signal,
+        requestContext: this.#threads.get(threadId)?.turnContext,
       },
       emit: (e) => this.#emitNode(threadId, e),
       suppressToolNames: SUPPRESS,
@@ -722,6 +771,12 @@ export interface HarnessConfig {
   // generateTitleFromUserMessage — the harness relays the result as
   // thread_renamed instead of the title landing silently in Mastra storage.
   generateTitle?: boolean | { model?: MastraModelConfig; instructions?: string }
+  // Build the turn's host RequestContext (credentials, per-turn toolsets,
+  // mode-driven model config via args.mode.metadata). Called once per turn —
+  // resumes included — and its entries are copied into every node's
+  // RequestContext, supervisor and subagents alike, beneath the harness
+  // runtime key. Return a fresh instance each call.
+  requestContext?: (args: TurnContextArgs) => RequestContext | undefined | Promise<RequestContext | undefined>
 }
 
 export function createHarness(config: HarnessConfig): Harness {
@@ -739,7 +794,10 @@ export function createHarness(config: HarnessConfig): Harness {
     const delegateTool = delegatesTo.length > 0 ? makeDelegateTool(delegatesTo) : undefined
     return (node: NodeEnvelope, runtime: HarnessRuntime): AgentRunner =>
       async (opts) => {
-        const rc = new RequestContext()
+        // Copy the turn's host context into a per-node instance — the runtime
+        // key differs per node, so sibling nodes must not share one context.
+        const host = opts.requestContext as RequestContext | undefined
+        const rc = new RequestContext<Record<string, unknown>>(host ? [...host.entries()] : undefined)
         rc.set(HARNESS_RUNTIME_KEY, runtime)
         const tools: Record<string, unknown> = { todo: todoTool }
         if (node.depth === 0) tools.ask_user = askUserTool // root-only HITL
@@ -761,10 +819,29 @@ export function createHarness(config: HarnessConfig): Harness {
           const gate = opts.requireApproval
           streamOpts.requireToolApproval = (ctx: { toolName: string }) => gate(ctx.toolName)
         }
+        // Attachments fold into the user message: image/* (or no mimeType) as
+        // image parts, everything else as file parts (the wire's mimeType is
+        // the AI SDK's mediaType). An attachment-only send has no text part —
+        // providers reject empty text blocks.
+        const input = opts.files?.length
+          ? [
+              {
+                role: 'user' as const,
+                content: [
+                  ...(opts.input ? [{ type: 'text' as const, text: opts.input }] : []),
+                  ...opts.files.map((f) =>
+                    !f.mimeType || f.mimeType.startsWith('image/')
+                      ? { type: 'image' as const, image: f.url, mediaType: f.mimeType }
+                      : { type: 'file' as const, data: f.url, mediaType: f.mimeType },
+                  ),
+                ],
+              },
+            ]
+          : opts.input
         const out =
           opts.resumeData !== undefined
             ? await agent.resumeStream(opts.resumeData, streamOpts as never)
-            : await agent.stream(opts.input, streamOpts as never)
+            : await agent.stream(input, streamOpts as never)
         return out as unknown as StreamResult
       }
   }
@@ -798,10 +875,18 @@ export function createHarness(config: HarnessConfig): Harness {
     permissions: config.permissions,
     toolCategoryResolver: config.toolCategoryResolver,
     threads: config.memory,
-    resolveToolCall: async ({ runId, toolCallId, approved }) => {
+    requestContext: config.requestContext,
+    resolveToolCall: async ({ runId, toolCallId, approved, requestContext, runtime }) => {
+      // Rebuild the continuation's RequestContext the same way the runner does —
+      // Mastra resumes with the OPTIONS given here, not the original stream's, so
+      // omitting it would resolve default models and drop every host entry.
+      const host = requestContext as RequestContext | undefined
+      const rc = new RequestContext<Record<string, unknown>>(host ? [...host.entries()] : undefined)
+      if (runtime) rc.set(HARNESS_RUNTIME_KEY, runtime)
+      const callOpts = { runId, toolCallId, requestContext: rc }
       const out = approved
-        ? await config.supervisor.approveToolCall({ runId, toolCallId } as never)
-        : await config.supervisor.declineToolCall({ runId, toolCallId } as never)
+        ? await config.supervisor.approveToolCall(callOpts as never)
+        : await config.supervisor.declineToolCall(callOpts as never)
       return out as unknown as StreamResult
     },
     generateTitle: config.generateTitle

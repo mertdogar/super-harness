@@ -586,6 +586,169 @@ describe('harness: modes', () => {
   })
 })
 
+describe('harness: per-turn request context', () => {
+  const recordingRunner =
+    (seen: RunOptions[], delegateTo?: { type: string; task: string; toolCallId: string }) =>
+    (_node: NodeEnvelope, runtime: HarnessRuntime): AgentRunner =>
+    async (opts) => {
+      seen.push(opts)
+      return {
+        fullStream: (async function* () {
+          if (delegateTo) await runtime.delegate(delegateTo.type, delegateTo.task, delegateTo.toolCallId)
+          yield { type: 'text-delta', payload: { text: 'ok' } }
+        })(),
+      }
+    }
+
+  it('resolves the hook once per turn and hands the value to root AND child runners', async () => {
+    const hookArgs: unknown[] = []
+    const rootOpts: RunOptions[] = []
+    const childOpts: RunOptions[] = []
+    const token = { creds: 'omma-key', sceneId: 's1' }
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      delegatesTo: ['worker'],
+      makeRunner: recordingRunner(rootOpts, { type: 'worker', task: 'build', toolCallId: 'tc-1' }),
+    })
+    registry.set('worker', { agentType: 'worker', makeRunner: recordingRunner(childOpts) })
+
+    const harness = engine(registry, {
+      modes: [{ id: 'ultra', metadata: { model1: 'opus', model2: 'sonnet' } }],
+      requestContext: (args) => {
+        hookArgs.push(args)
+        return token
+      },
+    })
+    await harness.sendMessage({ threadId: 't1', content: 'go' })
+
+    expect(hookArgs).toHaveLength(1)
+    expect(hookArgs[0]).toMatchObject({
+      threadId: 't1',
+      resource: 't1',
+      mode: { id: 'ultra', metadata: { model1: 'opus', model2: 'sonnet' } },
+    })
+    expect(rootOpts[0].requestContext).toBe(token)
+    expect(childOpts[0].requestContext).toBe(token)
+  })
+
+  it('re-resolves the hook on resume — per-turn state is rebuilt, not replayed', async () => {
+    let calls = 0
+    const seen: RunOptions[] = []
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      makeRunner: () => async (opts) => {
+        seen.push(opts)
+        return {
+          fullStream: (async function* () {
+            if (opts.resumeData !== undefined) return
+            yield {
+              type: 'tool-call-suspended',
+              payload: { toolCallId: 'ask-1', toolName: 'ask_user', suspendPayload: {}, args: {} },
+            }
+          })(),
+        }
+      },
+    })
+    const harness = engine(registry, { requestContext: () => ({ turn: ++calls }) })
+
+    const res = await harness.sendMessage({ threadId: 't1', content: 'go' })
+    expect(res.status).toBe('suspended')
+    await harness.resume({ threadId: 't1', resumeData: { answer: 'yes' } })
+
+    expect(calls).toBe(2)
+    expect(seen[0].requestContext).toEqual({ turn: 1 })
+    expect(seen[1].requestContext).toEqual({ turn: 2 })
+  })
+
+  it('a hook throw settles the turn as an errored node, without wedging the thread', async () => {
+    let broken = true
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', makeRunner: fakeRunner([]) })
+    const harness = engine(registry, {
+      requestContext: () => {
+        if (broken) throw new Error('no credentials')
+        return {}
+      },
+    })
+    await expect(harness.sendMessage({ threadId: 't1', content: 'go' })).rejects.toThrow('no credentials')
+    // The failure is VISIBLE in the tree (the wire fires sendMessage without
+    // awaiting it — otherwise the message silently vanishes for clients).
+    const tree = harness.getTree('t1')!
+    expect(tree.turns).toHaveLength(1)
+    expect(tree.nodes[tree.turns[0]]).toMatchObject({ status: 'error', error: 'no credentials' })
+    broken = false
+    const res = await harness.sendMessage({ threadId: 't1', content: 'again' })
+    expect(res).toMatchObject({ status: 'done' }) // running flag was released
+  })
+
+  it('threads the turn context and node runtime into an approval continuation', async () => {
+    const token = { creds: 'omma-key' }
+    const resolveArgs: unknown[] = []
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      makeRunner: () => async () => ({
+        fullStream: (async function* () {
+          yield { type: 'tool-call-approval', payload: { toolCallId: 'g1', toolName: 'clear_board', args: {} } }
+        })(),
+      }),
+    })
+    const harness = engine(registry, {
+      permissions: { tools: { clear_board: 'ask' } },
+      requestContext: () => token,
+      resolveToolCall: async (args) => {
+        resolveArgs.push(args)
+        return { fullStream: (async function* () { yield { type: 'text-delta', payload: { text: 'done' } } })() }
+      },
+    })
+    harness.subscribe((_tid, e) => {
+      if (e.type === 'approval_required') void harness.respondToApproval({ threadId: 't1', decision: 'approve' })
+    })
+
+    const res = await harness.sendMessage({ threadId: 't1', content: 'wipe it' })
+    expect(res).toMatchObject({ status: 'done', text: 'done' })
+    expect(resolveArgs[0]).toMatchObject({ approved: true, requestContext: token })
+    expect((resolveArgs[0] as { runtime?: unknown }).runtime).toBeDefined()
+  })
+})
+
+describe('harness: file attachments', () => {
+  it('rides files into the root RunOptions and preserves them on queued follow-ups', async () => {
+    const seen: RunOptions[] = []
+    let release!: () => void
+    const gate = new Promise<void>((r) => (release = r))
+    let first = true
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', {
+      agentType: 'supervisor',
+      makeRunner: () => async (opts) => {
+        seen.push(opts)
+        const hold = first && (first = false)
+        return {
+          fullStream: (async function* () {
+            if (hold) await gate
+            yield { type: 'text-delta', payload: { text: 'ok' } }
+          })(),
+        }
+      },
+    })
+    const harness = engine(registry)
+
+    const png = { url: 'data:image/png;base64,AAAA', mimeType: 'image/png' }
+    const p1 = harness.sendMessage({ threadId: 't1', content: 'first', files: [png] })
+    const queued = await harness.sendMessage({ threadId: 't1', content: 'second', files: [{ url: 'data:image/jpeg;base64,BBBB' }] })
+    expect(queued).toMatchObject({ status: 'queued' })
+    release()
+    await p1
+    await new Promise((r) => setTimeout(r, 0)) // let the drained follow-up start
+
+    expect(seen[0].files).toEqual([png])
+    expect(seen[1].files).toEqual([{ url: 'data:image/jpeg;base64,BBBB' }])
+  })
+})
+
 describe('harness: threads facade', () => {
   it('lists/creates/renames/deletes through the store and emits events', async () => {
     const db = new Map<string, ThreadRecord>()

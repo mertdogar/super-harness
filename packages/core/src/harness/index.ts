@@ -9,6 +9,7 @@ export {
   type RunResult,
   type SendResult,
   type HarnessMode,
+  type TurnContextArgs,
   type HarnessSessionEvent,
   type HarnessBusEvent,
   type HarnessListener,
@@ -40,6 +41,7 @@ export { makeDelegateTool, askUserTool, todoTool } from './tools'
 // ride along — it belongs to @super-harness/server and clients.
 export {
   harnessEventSchema,
+  type FileAttachment,
   type HarnessEvent,
   type HarnessEventType,
   type TokenUsage,

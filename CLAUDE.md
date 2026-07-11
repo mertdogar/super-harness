@@ -8,7 +8,7 @@ transport-free in `core`, exposed over super-line WebSockets by `server`.
 
 ```bash
 pnpm install
-pnpm build          # tsup (core & server only; shared/tui are source-run)
+pnpm build          # tsup for shared/core/server/react — publishable dists (tui is source-run)
 pnpm test           # vitest in shared/core/server (--if-present; no network — fakes throughout)
 pnpm typecheck      # tsc --noEmit
 pnpm lint           # oxlint
