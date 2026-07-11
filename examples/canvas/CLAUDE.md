@@ -18,9 +18,15 @@ Postgres + Electric docker cluster.
   `createTool({ id: "clear_board" })`, the Agent key `tools: { clear_board }`,
   and `permissions: { tools: { clear_board: "ask" } }`. Miss one and the gate
   silently never arms. AND: the core's fallback for any agent-registered tool
-  with no rule is **`ask`** (built-ins excepted) — the four ungated canvas
+  with no rule is **`ask`** (built-ins excepted) — the five ungated canvas
   tools are listed as explicit `allow` or every tool would gate, not just
   `clear_board`.
+- **`list_shapes` is the agent's ONLY eyes on the board.** The upstream
+  ai-canvas-pglite example injects the scene into the system prompt per turn;
+  a persistent Agent's instructions are static, so the read tool is the
+  equivalent. Remove it (or drop the "call list_shapes first" instruction) and
+  the model is blind to human-added shapes and to anything outside chat memory
+  — it will insist a 4-shape board has 1 shape.
 - **The `[board:<id>]` prefix is the board-routing convention.** The client
   prefixes every sent message with `[board:<activeBoardId>] ` (App.tsx); the
   supervisor's instructions tell it to pass that id as `boardId` to EVERY tool.

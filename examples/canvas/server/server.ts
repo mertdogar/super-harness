@@ -29,7 +29,7 @@ import { inspector } from "@super-line/plugin-inspector"
 import { createHarness } from "@super-harness/core"
 import { harness } from "@super-harness/server"
 import { contract } from "../shared/contract.js"
-import { COLORS, DEFAULT_BOARD_ID, newShapeId, topOrder, type Scene } from "../shared/scene.js"
+import { COLORS, DEFAULT_BOARD_ID, newShapeId, readShapes, topOrder, type Scene } from "../shared/scene.js"
 
 const PORT = Number(process.env.SUPER_HARNESS_PORT ?? 4116)
 const MODEL = process.env.CHAT_MODEL ?? "anthropic/claude-sonnet-4.5"
@@ -106,6 +106,27 @@ async function withScene<T>(boardId: string, fn: (replica: CrdtServerReplica) =>
 const snapshot = (replica: CrdtServerReplica): Scene | undefined => replica.getSnapshot() as Scene | undefined
 
 const boardIdInput = z.string().describe("Board to edit — the id from the [board:<id>] prefix on the user's message")
+
+// The agent's ONLY eyes on the board. The scene doc is co-edited live by humans
+// (and by earlier turns memory no longer covers), so without this read tool the
+// model can only guess board contents from chat history. The upstream
+// ai-canvas-pglite example injects the scene into the system prompt per turn;
+// a persistent Agent's instructions are static, so a tool is the equivalent.
+const listShapesTool = createTool({
+  id: "list_shapes",
+  description:
+    "List every shape currently on a board — id, position, color, label. The board is shared and changes outside this conversation; call this before editing or reasoning about existing shapes.",
+  inputSchema: z.object({ boardId: boardIdInput }),
+  outputSchema: z.object({
+    shapes: z.array(
+      z.object({ id: z.string(), x: z.number(), y: z.number(), color: z.string(), label: z.string() }),
+    ),
+  }),
+  execute: async ({ boardId }) =>
+    withScene(boardId, (replica) => ({
+      shapes: readShapes(snapshot(replica)).map(({ id, x, y, color, label }) => ({ id, x, y, color, label })),
+    })),
+})
 
 const addShapeTool = createTool({
   id: "add_shape",
@@ -210,6 +231,7 @@ const supervisor = new Agent({
   instructions: [
     "You co-edit a shared visual canvas with the user, live. Each shape is a labelled square on a board.",
     'Every user message is prefixed with the board it was sent from, e.g. "[board:B_abc123] add a red square" — that id names the board to edit. Pass it as boardId to EVERY tool call.',
+    "The user adds, drags, and deletes shapes on the same board while you chat, so your memory of the board is always stale — call list_shapes first whenever you edit or reason about existing shapes.",
     "Make every edit by calling tools — never describe an edit without doing it.",
     "Positions: x and y are 0..380, top-left origin. Prefer the palette: " + COLORS.join(", ") + ".",
     "clear_board wipes the whole board and is human-approval-gated — call it only when the user explicitly asks to clear or wipe the board, never as a shortcut.",
@@ -217,6 +239,7 @@ const supervisor = new Agent({
   ].join(" "),
   model: gateway(MODEL),
   tools: {
+    list_shapes: listShapesTool,
     add_shape: addShapeTool,
     move_shape: moveShapeTool,
     restyle_shape: restyleShapeTool,
@@ -230,10 +253,11 @@ const engine = createHarness({
   supervisor,
   memory: mem(), // enables harness.listThreads (client calls it on connect) + recall
   // The core's fallback for a tool with no rule is 'ask' (built-ins excepted),
-  // so every agent-registered tool needs an explicit entry — list the four
+  // so every agent-registered tool needs an explicit entry — list the five
   // ungated canvas tools as 'allow' or they ALL gate, not just clear_board.
   permissions: {
     tools: {
+      list_shapes: "allow",
       add_shape: "allow",
       move_shape: "allow",
       restyle_shape: "allow",
