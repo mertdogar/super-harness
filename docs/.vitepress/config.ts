@@ -4,6 +4,7 @@ export default defineConfig({
   title: 'super-harness',
   description:
     'A transparent, durable multi-agent harness for TypeScript, Mastra, and super-line.',
+  base: '/super-harness/',
   cleanUrls: true,
   lastUpdated: true,
   head: [['link', { rel: 'icon', href: '/mark.svg' }]],

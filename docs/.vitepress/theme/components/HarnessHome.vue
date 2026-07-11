@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { withBase } from 'vitepress'
+
 const contractCode = `// Your app owns the agents, auth, and server.
 const engine = createHarness({
   supervisor,
@@ -38,15 +40,17 @@ const treeCode = `thread: product-research
           tool call, and bring people in at the exact moment they matter.
         </p>
         <div class="sh-actions">
-          <a class="VPButton brand" href="/tutorials/first-harness">Get started</a>
+          <a class="VPButton brand" :href="withBase('/tutorials/first-harness')">
+            Get started
+          </a>
           <a class="VPButton alt" href="https://github.com/mertdogar/super-harness">View on GitHub</a>
         </div>
       </div>
-      <div class="sh-tree" aria-label="A live agent session tree">
+      <section class="sh-tree" aria-label="A live agent session tree">
         <div class="sh-tree__bar"><i /> LIVE SESSION <b>00:14</b></div>
         <pre><code>{{ treeCode }}</code></pre>
         <div class="sh-tree__status"><span /> connected · durable · replayable</div>
-      </div>
+      </section>
     </section>
 
     <section class="sh-proof">
@@ -67,7 +71,9 @@ const treeCode = `thread: product-research
     <section class="sh-next">
       <p>Start with a working harness</p>
       <h2>From agents to an observable system.</h2>
-      <a href="/tutorials/first-harness">Build your first harness <span>→</span></a>
+      <a :href="withBase('/tutorials/first-harness')">
+        Build your first harness <span>→</span>
+      </a>
     </section>
   </main>
 </template>
