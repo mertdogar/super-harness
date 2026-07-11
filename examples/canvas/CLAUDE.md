@@ -61,8 +61,14 @@ Postgres + Electric docker cluster.
   borrows it (close() only detaches). `crdtCollections:
   crdtCollectionsClient()` is the CLIENT's job — the harness never touches
   CRDT docs; omit it and `sl.collection("scenes").open()` has no engine.
-  Node swaps (`main.tsx` Root) close the previous socket themselves and carry
-  the threadId across.
+  Node swaps (`main.tsx` Root) close the previous socket themselves.
+- **Thread identity follows the ACTIVE BOARD, not the tab.** `threadId =
+  board:<id>` (`boardThreadId`, `lib/client.ts`): the client is seeded from the
+  default board and `App`'s `switchThread` effect re-points it whenever
+  `activeBoardId` changes. So both tabs on a board derive the SAME thread and
+  share ONE live conversation — and both DRIVE it (either can abort / answer an
+  ask_user or approval, first-write-wins). This mirrors the CRDT scene doc,
+  which is likewise keyed by board id. There are no per-tab random thread ids.
 - **Shared principal `canvas` is load-bearing for cross-node reads.** The
   client sends `resourceId: 'canvas'`, no `userId`; the server's `authenticate`
   preserves serve()'s `userId ?? resourceId ?? 'local'` fallback. Every tab on

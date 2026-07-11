@@ -30,7 +30,7 @@ import { BoardsLobby } from "@/components/boards-lobby"
 import { BoardCanvas } from "@/components/board-canvas"
 import { useDoc } from "@/hooks/use-doc"
 import { DEFAULT_BOARD_ID } from "../../shared/scene"
-import type { CanvasClient } from "@/lib/client"
+import { boardThreadId, type CanvasClient } from "@/lib/client"
 
 // The PromptInput's files are FileUIPart with data URLs (converted on submit).
 function toWireFiles(files: PromptInputMessage["files"]): FileAttachment[] {
@@ -125,6 +125,13 @@ export default function App({
   const { tree, connected, busy, pendingAsk, pendingApproval, notice, queued } = state
   const [activeBoardId, setActiveBoardId] = useState(DEFAULT_BOARD_ID)
   const doc = useDoc(sl, activeBoardId)
+  // Point the conversation at the active board's thread. Both tabs derive the
+  // same id, so the stream is shared and live across tabs (like the canvas).
+  // switchThread is idempotent, so the initial default-board render is a no-op;
+  // the harness dep re-points after a node swap (the client is a fresh one).
+  useEffect(() => {
+    void harness.switchThread(boardThreadId(activeBoardId))
+  }, [activeBoardId, harness])
   const sent = useSentAttachments(tree)
   // Attachment rejections (too big / wrong type) are otherwise silent.
   const [fileError, setFileError] = useState<string | null>(null)

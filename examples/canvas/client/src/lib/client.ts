@@ -9,7 +9,6 @@ import { createSuperLineClient, type SuperLineClient } from "@super-line/client"
 import { webSocketClientTransport } from "@super-line/transport-websocket"
 import { crdtCollectionsClient } from "@super-line/collections-crdt-memory"
 import { createHarnessClient, type HarnessClient, type HarnessWire } from "@super-harness/react"
-import { nanoid } from "nanoid"
 import { contract, type CanvasContract } from "../../../shared/contract"
 
 const BASE_PORT = Number(import.meta.env.VITE_NODE_BASE_PORT) || 0
@@ -36,7 +35,10 @@ export interface CanvasClients {
   harness: HarnessClient
 }
 
-export const freshThreadId = (): string => nanoid()
+// Thread identity is derived from the board id, not minted per tab: both tabs
+// on a board compute the same id, so the conversation is shared and live across
+// tabs — exactly like the CRDT scene doc, which is also keyed by board id.
+export const boardThreadId = (boardId: string): string => `board:${boardId}`
 
 export function createClientsForNode(node: number, threadId: string): CanvasClients {
   const sl = createSuperLineClient(contract, {
