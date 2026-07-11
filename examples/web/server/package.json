@@ -20,8 +20,8 @@
     "@mastra/pg": "^1.14.3",
     "@super-harness/core": "workspace:*",
     "@super-harness/server": "workspace:*",
-    "@super-line/core": "^0.10.1",
-    "@super-line/server": "^0.10.2",
+    "@super-line/core": "^0.11.0",
+    "@super-line/server": "^0.11.0",
     "@super-line/adapter-libp2p": "^0.6.0",
     "@super-line/transport-websocket": "^0.6.0",
     "hono": "^4.12.10",
@@ -30,7 +30,7 @@
     "ai": "^6.0.0",
     "@super-line/collections-sqlite": "^0.1.0",
     "@super-line/collections-pglite": "^0.1.0",
-    "@super-line/plugin-inspector": "^0.1.0"
+    "@super-line/plugin-inspector": "^0.2.0"
   },
   "devDependencies": {
     "@types/node": "^25.6.0",

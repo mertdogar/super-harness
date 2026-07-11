@@ -1,7 +1,7 @@
 {
   "name": "@super-harness/server",
   "version": "0.0.0",
-  "description": "Batteries-included super-line binding for Super Harness: serve() exposes a core Harness over a super-line server with durable per-node/thread Stores, the wire contract, and HITL suspension/approval broadcast.",
+  "description": "Batteries-included super-line binding for Super Harness: the harness() plugin and standalone serve() expose a core Harness over a super-line server with durable harness.* collections, the wire contract, and HITL suspension/approval broadcast.",
   "keywords": [
     "agent",
     "agents",
@@ -57,17 +57,11 @@
     "@super-line/collections-memory": "^0.1.0",
     "@super-line/collections-pglite": "^0.1.0",
     "@super-line/collections-sqlite": "^0.1.0",
-    "@super-line/core": "^0.10.1",
-    "@super-line/server": "^0.10.2",
-    "@super-line/store-memory": "^0.9.0",
-    "@super-line/store-pglite": "^0.2.0",
-    "@super-line/store-sqlite": "^0.4.0"
+    "@super-line/core": "^0.11.0",
+    "@super-line/server": "^0.11.0"
   },
   "peerDependenciesMeta": {
     "@super-line/collections-pglite": {
-      "optional": true
-    },
-    "@super-line/store-pglite": {
       "optional": true
     }
   },
@@ -75,15 +69,12 @@
     "@electric-sql/pglite": "^0.5.4",
     "@libsql/client": "^0.17.4",
     "@mastra/core": "1.49.0-alpha.2",
-    "@super-line/client": "^0.8.1",
+    "@super-line/client": "^0.9.0",
     "@super-line/collections-memory": "^0.1.0",
     "@super-line/collections-pglite": "^0.1.0",
     "@super-line/collections-sqlite": "^0.1.0",
-    "@super-line/core": "^0.10.1",
-    "@super-line/server": "^0.10.2",
-    "@super-line/store-memory": "^0.9.0",
-    "@super-line/store-pglite": "^0.2.0",
-    "@super-line/store-sqlite": "^0.4.0",
+    "@super-line/core": "^0.11.0",
+    "@super-line/server": "^0.11.0",
     "@super-line/transport-websocket": "^0.6.0",
     "vitest": "^4.1.2",
     "zod": "^4.4.3"

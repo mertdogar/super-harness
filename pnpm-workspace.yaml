@@ -7,20 +7,18 @@ packages:
 allowBuilds:
   better-sqlite3: true
   esbuild: true
-# Published @super-line/server/client/store-*/transport-* carry
-# @super-line/core as a REGULAR dependency (^0.10.0) — without this override
-# pnpm installs multiple core copies and host + library stop sharing one
-# instance (contract identity / SuperLineError instanceof skew). Drop once
-# upstream makes core a true peerDependency.
+# Published @super-line/server/client/collections-*/transport-* carry
+# @super-line/core as a REGULAR dependency — without this override pnpm
+# installs multiple core copies and host + library stop sharing one instance
+# (contract identity / SuperLineError instanceof skew). Drop once upstream
+# makes core a true peerDependency.
 overrides:
-  '@super-line/core': ^0.10.1
-minimumReleaseAge: 0  
-minimumReleaseAgeExclude:
-  - '@super-line/client@0.4.0'
-  - '@super-line/core@0.4.0'
-  - '@super-line/react@0.4.0'
-  - '@super-line/server@0.4.0'
-  - '@super-line/transport-websocket@0.4.0'
-  - '@mastra/core@1.49.0-alpha.2'
-  - '@mastra/schema-compat@1.3.3-alpha.0'
-  - '@super-line/server@0.9.0'
+  '@super-line/core': ^0.11.0
+# plugin-auth@0.1.0 predates the 0.11 release wave; its client/server peers
+# are stale but its runtime only touches symbols that survive 0.11. Drop once
+# upstream republishes plugin-auth with widened peers.
+peerDependencyRules:
+  allowedVersions:
+    '@super-line/plugin-auth>@super-line/client': '^0.9.0'
+    '@super-line/plugin-auth>@super-line/server': '^0.11.0'
+minimumReleaseAge: 0
