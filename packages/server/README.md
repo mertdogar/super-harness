@@ -1,33 +1,103 @@
 # @super-harness/server
 
-The super-line binding for a `@super-harness/core` Harness. `serve(harness,
-config)` exposes an existing (transport-free) Harness over a super-line
-WebSocket server:
+The super-line binding for a `@super-harness/core` Harness, shipped as a
+super-line **plugin**. Two exports, two adoption modes:
 
-- **Tree over Stores** — raw node events fold through a per-thread Projector
-  into `superlineTreeSink`, which writes per-node and per-thread super-line
-  Store documents. Clients read the live tree by opening Stores (see
-  `subscribeTree` in `@super-harness/shared`) — the tree never rides the
-  request/response contract.
-- **Contract 1:1** — `harness.sendMessage`, `harness.resumeMessage`,
-  `harness.abort`, `harness.respondToApproval`, `harness.switchMode`,
-  `harness.listModes`, thread CRUD each map onto the corresponding Harness
-  method.
-- **Ephemeral signals** — `harness.suspended`, `harness.approvalRequired`,
-  `harness.modeChanged`, `harness.followUpQueued` broadcast to the
-  `harness:thread:{id}` room.
-- **Composable** — `serve()` is a thin standalone host over `harnessStores()`
-  and `mountHarness()`; a host app with its own super-line server merges
-  `harnessSurface` into its contract's `shared` block and spreads the stores
-  and handlers into its own config (see "Composition" below).
+- **`harness(engine)`** — a `SuperLinePlugin` a host adds to its own
+  `createSuperLineServer` `plugins:` array. The primary story: one server, one
+  socket, one auth, one collections backend for the host AND the harness.
+- **`serve(engine, config)`** — the standalone host, built from the same
+  pieces: it owns the collections backend, a default query-param
+  `authenticate`, `identify`, and mounts `plugins: [harness(engine), ...]`.
+
+The tree rides **collections**, not the request surface: structural state is
+`harness.threads`/`nodes`/`tools`/`membership` rows (declared by
+`harnessContract()` in `@super-harness/shared`), and the token stream rides
+ephemeral per-thread room events that are never persisted per-token. Clients
+assemble the live tree with `subscribeTree` from `@super-harness/shared` (or
+`@super-harness/react`).
 
 ## Install
 
 ```bash
-pnpm add @super-harness/server @super-harness/core @mastra/core
+pnpm add @super-harness/server @super-harness/core @super-harness/shared \
+  @mastra/core @super-line/core @super-line/server \
+  @super-line/collections-memory @super-line/collections-sqlite
 ```
 
-## Use
+All `@super-line/*` packages are **peers** — your app owns one core instance
+shared by host and library. What you need:
+
+| Peer | Version | When |
+| --- | --- | --- |
+| `@super-line/core` | `^0.11.0` | always |
+| `@super-line/server` | `^0.11.0` | always |
+| `@super-line/collections-memory` | `^0.1.0` | always (serve's `memory` backend; cheap) |
+| `@super-line/collections-sqlite` | `^0.1.0` | always (serve's default backend) |
+| `@super-line/collections-pglite` | `^0.1.0` | **optional** — only for `storage: { type: 'pglite' }` |
+| `@mastra/core` | `^1.49.0-alpha.2` | always (the engine's peer) |
+
+A transport is the host's choice — e.g. `@super-line/transport-websocket`
+(`^0.6.0`). Composing hosts that bring their own backend only need the
+collections package they actually use.
+
+## Composition — the harness as a plugin in your server
+
+If the app runs (or should run) its own super-line server, add the harness
+beside its surface. Four obligations (see `examples/composed-host` for the
+runnable version, `composition.test.ts` for the e2e):
+
+```ts
+import { z } from 'zod'
+import { defineContract, defineSurface } from '@super-line/core'
+import { createSuperLineServer } from '@super-line/server'
+import { memoryCollections } from '@super-line/collections-memory'
+import { webSocketServerTransport } from '@super-line/transport-websocket'
+import { harnessContract } from '@super-harness/shared'
+import { harness } from '@super-harness/server'
+
+// 1. Merge the contract fragment: harnessContract() contributes the harness
+//    surface (on `shared`) + the four harness.* collections.
+const hostContract = defineContract({
+  plugins: [harnessContract()],
+  shared: defineSurface({
+    clientToServer: {
+      'demo.echo': { input: z.object({ text: z.string() }), output: z.object({ echoed: z.string() }) },
+    },
+  }),
+  roles: { user: {} },
+})
+
+const srv = createSuperLineServer(hostContract, {
+  transports: [webSocketServerTransport({ server: httpServer, path: '/ws' })],
+  // 2. ONE collections backend, host-owned — serves the harness collections
+  //    beside any of the host's own.
+  collections: memoryCollections(),
+  // 3. authenticate ctx carries userId (+resourceId); identify returns it.
+  authenticate: (h) => ({ role: 'user' as const, ctx: { userId: userIdFrom(h) } }),
+  identify: (conn) => (conn.ctx as { userId: string }).userId,
+  // 4. Add the plugin. harness.* handler keys are subtracted from implement().
+  plugins: [harness(engine)],
+})
+
+// The host implements only its own surface — harness.* is owned by the plugin.
+srv.implement({ shared: { 'demo.echo': async ({ text }) => ({ echoed: text.toUpperCase() }) }, user: {} })
+```
+
+**`identify` is load-bearing.** The harness collections' RLS keys on
+`ctx.userId`, and super-line's principal is `identify(conn) ?? conn.id` — a
+random connection id. A host that skips `identify` gets a working request
+surface and a **silently empty tree**: every membership-gated read is denied.
+With `@super-line/plugin-auth`, `identify` comes from the session and the
+identity becomes the principal for free (see `examples/auth`).
+
+Client side: one `createSuperLineClient(hostContract)` handed to
+`createHarnessClient({ client })` from `@super-harness/react` in borrowed mode — its
+`close()` detaches listeners, never the host's socket.
+
+## Standalone — `serve()`
+
+The harness-only contract on its own server, same pieces pre-wired:
 
 ```ts
 import { createServer } from 'node:http'
@@ -35,100 +105,72 @@ import { webSocketServerTransport } from '@super-line/transport-websocket'
 import { serve } from '@super-harness/server'
 
 const httpServer = createServer()
-const { server, close } = await serve(harness, {
-  storage: { type: 'sqlite', path: './harness.db' },   // default; 'memory' for tests
+const { server, close } = await serve(engine, {
+  storage: { type: 'sqlite', file: './harness.db' },   // default; 'memory' for tests
   transports: [webSocketServerTransport({ server: httpServer, path: '/super-line' })],
-  // authenticate?: (handshake) => ({ role: 'user', ctx: { userId } })
-  // inspector?: true — super-line Control Center telemetry (read-only but
-  // UNAUTHENTICATED; dev/trusted networks only). Must ALSO be set on the WS
-  // transport. View: npx @super-line/control-center --url ws://localhost:4111/super-line
+  // authenticate?: (handshake) => ({ role: 'user', ctx: { userId, resourceId? } })
+  // plugin?: { roleFor, defaultRole } — membership role policy (see below)
+  // plugins?: [inspector(), auth()] — extra super-line plugins beside harness()
 })
 httpServer.listen(4111)
 ```
 
-The sqlite backend uses one table per namespace (`harness_node`,
-`harness_thread`) and needs `better-sqlite3`'s native build (in this workspace
-it's allowlisted via `allowBuilds` in `pnpm-workspace.yaml`). The default
-`authenticate` trusts a `userId` query param — replace it for anything
-non-local.
+The storage union picks the collections backend:
 
-### Composition — mounting into a host super-line server
+- `{ type: 'sqlite', file? }` — default; owns its own file. Needs
+  `better-sqlite3`'s native build.
+- `{ type: 'memory' }` — tests/dev.
+- `{ type: 'pglite', pgUrl, electricUrl? }` — multi-node: central Postgres for
+  writes + Electric-synced per-node replicas for fan-out. Loads
+  `@super-line/collections-pglite` (the optional peer) on demand. Viable even
+  though writes round-trip PG → Electric → replica, because tokens are
+  ephemeral — only low-frequency structural rows hit the backend.
 
-If the app already runs its own super-line server, mount the harness beside
-its surface instead of calling `serve()` — one server, one socket, one auth:
+The default `authenticate` trusts `userId`/`resourceId` query params — replace
+it (or compose `@super-line/plugin-auth` via `plugins:`) for anything
+non-local. `close()` tears the server down and disposes the plugin's bus
+subscription; the transports/http server are the caller's to close.
 
-```ts
-import { defineContract, mergeSurfaces } from '@super-line/core'
-import { createSuperLineServer } from '@super-line/server'
-import { harnessSurface } from '@super-harness/shared'
-import { harnessStores, mountHarness } from '@super-harness/server'
+## What the plugin contributes
 
-const contract = defineContract({
-  // must ride `shared`: rooms only broadcast shared events
-  shared: mergeSurfaces(harnessSurface, appSurface),
-  roles: { user: {} },
-})
-const srv = createSuperLineServer(contract, {
-  transports,
-  authenticate,                                  // ctx must extend { userId, resourceId? }
-  identify: (conn) => (conn.ctx as { userId: string }).userId, // store ACLs key on it
-  stores: { ...(await harnessStores({ type: 'postgres', db })), ...appStores },
-})
-const mount = mountHarness(srv, harness)
-srv.implement({ shared: { ...mount.handlers, ...appHandlers }, user: {} })
-```
+`harness(engine, opts)` returns `{ policies, handlers, setup }`:
 
-`identify` is load-bearing: without it the store principal is the random
-connection id and every tree read is silently denied. See
-`examples/composed-host` for the runnable version, including the client side
-(one shared `createSuperLineClient` + `createHarnessClient({ client })`).
+- **Policies** — membership-based RLS over the four collections.
+  `harness.nodes`/`tools` read `isIn('threadId', joinedThreads(principal))`;
+  `harness.threads` reads `eq('resourceId', ctx.resourceId)` (the sidebar
+  list), falling back to membership when the connection carries no
+  `resourceId`; `harness.membership` reads `eq('userId', principal)`. Client
+  writes are all **deny** — the plugin co-writes server-authoritatively,
+  bypassing policy.
+- **Handlers** — the `harness.*` requests (send/resume/abort/approve/
+  switchMode/listModes/thread CRUD/join), subtracted from the host's
+  `implement()`. `harness.join` adds the connection to the thread room and
+  inserts a membership row.
+- **`setup(ctx)`** — subscribes the engine bus. Token deltas
+  (`reasoning`/`text`/`argsText`) broadcast to the per-thread room
+  (`harness:thread:{id}`) — ephemeral, never persisted — and fold into a
+  per-thread Projector; structural events fold through the Projector into the
+  collections writer (`collectionsTreeSink`), which lands the final strings on
+  the row at `node_end`/`tool_end`. Session signals (`suspended`,
+  `approvalRequired`, `modeChanged`, `followUpQueued`) broadcast; a
+  suspension's `{resumeSchema, request}` also parks on the node row
+  (`pendingResume`) so a mid-turn reload rebuilds the prompt. Thread metadata
+  persists as row updates (thread-list reactivity is `harness.threads` row
+  deltas, not events); `thread_deleted` cascades node/tool/membership rows.
 
-### Sharing the app's database (libsql / postgres)
+### Roles: viewer vs operator
 
-If the app already owns a database — e.g. the one Mastra's memory writes to —
-`serve()` can write its tree Stores into `superline_harness_node` /
-`superline_harness_thread` tables in that **same** database instead of a
-separate `harness.db`. Pass the live connection the app already built (no
-second pool, no `better-sqlite3`):
+The viewer/operator split is a **`role` column on `harness.membership`** —
+per-user, per-thread — NOT a connection role. Control ops (send/resume/abort/
+approve/switchMode/rename/delete) reject a `viewer` membership with
+`FORBIDDEN`; read ops don't, so a viewer still sees the full live tree. The
+default join role is `operator` (every joiner can drive — preserves
+single-user behavior); pass `roleFor(ctx)` or `defaultRole` in
+`HarnessPluginOptions` to hand out `viewer` memberships.
 
-```ts
-// libsql — pass the SAME @libsql/client you give LibSQLStore({ client })
-const client = createClient({ url: 'file:./app.db' })   // or a libsql:// URL
-new LibSQLStore({ id: 'app', client })                  // Mastra memory
-await serve(harness, { storage: { type: 'libsql', client }, transports })
+## Auth
 
-// postgres — PostgresStore exposes its pg-promise handle as `storage.db`
-const storage = new PostgresStore({ id: 'app', connectionString })
-await serve(harness, { storage: { type: 'postgres', db: storage.db }, transports })
-```
-
-Both are last-writer-wins whole-doc replaces (same model as the sqlite backend,
-which the server is the sole writer of). The bindings are typed against
-structural subsets of the drivers, so `@super-harness/server` imports neither
-`@libsql/client` nor `pg-promise` — the app owns those. `libsqlStoreServer` /
-`pgStoreServer` are also exported directly if you want to open a Store yourself.
-
-### Multi-node (Postgres + Electric)
-
-For a horizontally-scaled deployment where Postgres + Electric are already the
-fan-out infra, use `@super-line/store-pglite` (an **optional peer** — install it
-only for this backend): central Postgres for writes/reads/ACL, per-node
-Electric-synced PGlite replicas whose `live.changes` feed drives the client
-fan-out.
-
-```ts
-// share the Postgres URL your app already uses; point at the Electric shape API
-await serve(harness, {
-  storage: { type: 'pglite', pgUrl: process.env.DATABASE_URL, electricUrl: 'http://electric:3000/v1/shape' },
-  transports,
-})
-```
-
-The tree lands in `superline_node` / `superline_thread` tables. Live updates
-require an Electric service in front of the Postgres — a write round-trips
-central PG → Electric → every node's replica → `onChange`. Because the sink
-persists whole node docs on a **trailing debounce** (see below), a fast token
-stream lands ≤ 1 write per `flushMs` (default 150 ms) rather than one per token.
-
-`close()` detaches the harness bus subscription; tear the super-line server
-down by closing its transports/http server.
+The plugin is auth-agnostic: it reads `ctx.userId` however the host's
+`authenticate` supplies it — query-param dev auth, `@super-line/plugin-auth`,
+or a custom scheme. `resourceId` (optional) scopes the thread list. See
+`examples/auth` for the plugin-auth pairing.

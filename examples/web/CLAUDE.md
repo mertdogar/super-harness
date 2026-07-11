@@ -31,7 +31,7 @@ Two workspace packages (glob `examples/web/*`): `server/` (Hono +
   - `pglite` — `PostgresStore(PG_URL)` for Mastra; the tree rides
     `pgliteCollections({ pgUrl, electricUrl })` (dynamic import) = central PG +
     per-node Electric-synced replicas. The multi-node choice (`docker-compose.yml`).
-- **`docker-compose.yml`** boots the multi-node store-pglite demo: PG + Electric
+- **`docker-compose.yml`** boots the multi-node collections-pglite demo: PG + Electric
   + 3 nodes + vite frontend + Control Center. One shared image (`Dockerfile`,
   repo-root context) runs both the node servers and vite, differing only by
   compose `command`. `env_file: ../../.env` feeds only `AI_GATEWAY_API_KEY`
@@ -50,11 +50,11 @@ Two workspace packages (glob `examples/web/*`): `server/` (Hono +
   `resourceId: 'web'` and NO `userId`, so the server's inline `authenticate`
   resolves the principal to `'web'` for every tab on every node
   (`userId ?? resourceId ?? 'local'` — preserved verbatim from `serve()`).
-  node-1 grants its streaming node Resources to `'web'`; the grant replicates via
-  Electric; a client on node-2 authenticates as `'web'` too, so it satisfies the
-  read — including nodes created after it connected. Give tabs distinct `userId`s
-  and cross-node reads break (node-1's `grantTo` wouldn't include the other
-  principal).
+  `harness.join` on node-1 inserts a `harness.membership` row for `'web'`; the
+  row replicates via Electric; a client on node-2 authenticates as `'web'` too,
+  so the membership RLS read passes — including node/tool rows written after it
+  connected. Give tabs distinct `userId`s and cross-node reads break (node-1's
+  membership row names a different principal).
 - `send_report` (supervisor tool) is fake — it exists to exercise the approval
   flow (`'ask'`). Don't make it real.
 - The super-line inspector is ON by default (`SUPER_HARNESS_INSPECTOR=0`
@@ -62,7 +62,7 @@ Two workspace packages (glob `examples/web/*`): `server/` (Hono +
   localhost demo. `pnpm -F @super-harness/web-server inspect` opens the
   Control Center. `SUPER_HARNESS_INSPECTOR` gates whether `inspector()` is added
   to `createSuperLineServer`'s `plugins` (after `harness(engine)`).
-- **Two separate cross-node planes.** The tree/Store data bus is Electric
+- **Two separate cross-node planes.** The tree/collections data bus is Electric
   (`pglite` mode only). Presence + inspector fan-out is a SEPARATE broker-less
   libp2p mesh (mDNS discovery, gossipsub, `createLibp2pAdapter`) that every
   node joins regardless of storage backend — that's why connecting the Control

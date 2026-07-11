@@ -56,7 +56,7 @@ Mastra memory (`dev.db`) carries the conversation across turns.
   thread (`tree.todos`), separate from the delegation tree (`tree.nodes`). The
   board renders them as two regions on purpose — there is no wire link tying a
   specific todo line to a specific delegated node.
-- The server uses an **in-memory tree Store** and mints a **fresh thread id per
+- The server uses **in-memory tree collections** and mints a **fresh thread id per
   page load**, so a refresh starts a new plan. `dev.db` (Mastra memory, for
   cross-turn recall and `listThreads`) is gitignored; delete it to reset.
 - The fake `publish_plan` tool exists only to exercise the approval flow. Don't

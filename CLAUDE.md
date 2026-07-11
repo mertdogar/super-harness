@@ -22,12 +22,12 @@ Run the demo: `pnpm -F @super-harness/dev-server start` (needs
 ## Layout
 
 - `packages/shared` — isomorphic wire layer: super-line contract, event/tree
-  types, `apply()` fold, client Store view. No Mastra, no server deps.
+  types, `apply()` fold, client tree view. No Mastra, no server deps.
 - `packages/core` — the engine: `createHarness` (bus, follow-up queue,
   approvals, suspensions, modes, threads). Mastra is a **peer** dep.
 - `packages/server` — super-line binding: standalone `serve(harness, config)`
-  OR composition into a host server (`harnessStores` + `mountHarness`),
-  durable Store sink, contract implementation.
+  OR the `harness(engine)` plugin composed into a host server, durable
+  collections writer (`sink.ts`), contract implementation.
 - `packages/react` — headless React client: framework-free `HarnessClient`
   (wire state machine, owns a socket via `url` or borrows the host app's via
   `client`) + `HarnessProvider`/`useHarness` hooks. No components.
@@ -93,7 +93,7 @@ Two halves:
   keys are subtracted from `implement()`. The host provides ONE `collections:`
   backend (serves the harness + the host's own collections) and — via
   `identify` — the `ctx.userId` principal the harness RLS keys on.
-- `react` exports **`harnessClient()`** / the headless `HarnessClient`, driving
+- `react` exports **`createHarnessClient()`** / the headless `HarnessClient`, driving
   the tree over `client.collection()`.
 
 `serve(engine, cfg)` is the same pieces standalone (it owns the backend +

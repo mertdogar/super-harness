@@ -1,17 +1,18 @@
 name: super-harness-web
 
-# End-to-end multi-node demo of the store-pglite backend. Central Postgres holds
-# BOTH Mastra's ground truth (mastra_* — threads/messages/mode) AND super-line's
-# tree source (superline_node/superline_thread). Electric streams the tree tables
-# into each node's in-memory PGlite replica; Mastra reads/writes central PG
-# directly. So any node sees the same threads + streams the same tree.
+# End-to-end multi-node demo of the collections-pglite backend. Central Postgres
+# holds BOTH Mastra's ground truth (mastra_* — threads/messages/mode) AND
+# super-line's tree source (collection_rows — one shared table carrying all
+# harness.* collections, keyed by pk). Electric streams that table into each
+# node's in-memory PGlite replica; Mastra reads/writes central PG directly. So
+# any node sees the same threads + streams the same tree.
 #
 #   docker compose up --build      (needs AI_GATEWAY_API_KEY in the repo-root .env)
 #
 # Then open http://localhost:5173. Pick the node from the header selectbox
 # (node-1/2/3). Drive a conversation on node-1, then flip the selectbox to node-2:
 # the client reconnects and the SAME thread re-renders from node-2's replica —
-# that round-trip (node-1 → PG → Electric → node-2) IS the store-pglite cross-node
+# that round-trip (node-1 → PG → Electric → node-2) IS the collections-pglite cross-node
 # proof, in one window. Control Center on :8081 taps node-1's inspector (repoint to
 # :8802/:8803 from its Settings).
 
@@ -58,7 +59,7 @@ services:
       timeout: 3s
       retries: 15
 
-  # Electric — streams the superline_* tables out as HTTP shapes to each node's local PGlite replica.
+  # Electric — streams the collection_rows table out as an HTTP shape to each node's local PGlite replica.
   electric:
     image: electricsql/electric
     environment:
@@ -67,11 +68,13 @@ services:
     depends_on:
       postgres: { condition: service_healthy }
 
-  # node-1 is the schema leader: it creates the shared superline_* tables during
-  # boot. node-2/3 wait for it to be healthy before starting, so the three never
-  # run CREATE TABLE IF NOT EXISTS concurrently on a cold DB — that race collides
-  # on the table's implicit row-type and throws 42710 (store-pglite 0.1.0 swallows
-  # 42P07/23505 but not 42710). Once the tables exist, followers' DDL just no-ops.
+  # node-1 is the schema leader: it creates the shared collection_rows table
+  # during boot. node-2/3 wait for it to be healthy before starting, so the three
+  # never run CREATE TABLE IF NOT EXISTS concurrently on a cold DB — that race
+  # collides on the table's implicit row-type and throws 42710. collections-pglite
+  # swallows all the peer-already-created catalog codes (42P07/23505/42710), so
+  # this ordering is belt-and-suspenders that keeps a cold boot deterministic.
+  # Once the table exists, followers' DDL just no-ops.
   node-1:
     <<: *node
     environment:

@@ -1,6 +1,6 @@
 // The harness core: one super-line client driving one thread against a
 // super-harness server, shared by both shells (TUI + headless). It reads the tree
-// from the durable Store (subscribeTree), turns snapshot changes into the
+// from the durable collections (subscribeTree), turns snapshot changes into the
 // HarnessEvent stream both shells consume (diffTree), and owns wire state
 // (busy / pending suspension). No rendering, no stdin here.
 
@@ -350,7 +350,7 @@ export class HarnessSession {
     this.pendingApproval = null
     this.counts = { tools: 0, errors: 0, tokens: 0 }
     this.handlers.onStatus({ kind: "info", message: `new thread ${this.threadId}` })
-    // join (server pre-creates the thread Resource) then subscribe — see connect().
+    // join (server pre-creates the thread row) then subscribe — see connect().
     void this.joinCurrent()
       .then(() => this.subscribe())
       .catch((error) => this.handlers.onStatus({ kind: "error", message: errMessage(error) }))
