@@ -156,6 +156,40 @@ describe('wire (serve() over ws, via collections)', () => {
     expect(prev.nodes.c1?.tools.t1?.status).toBe('output-available')
   })
 
+  // Regression: a connection that carries a resourceId must still see the thread
+  // rows of threads it JOINED. A client-minted thread (join + send, never
+  // createThread) has no resourceId on its row — an eq(resourceId)-only filter
+  // hides the caller's own thread, so subscribeTree never gets turns and the
+  // conversation renders empty (found via the canvas example).
+  it('delivers a client-minted thread row to a resourceId-carrying connection', async () => {
+    const httpServer: Server = createServer()
+    const harness = buildHarness()
+    const { close } = await serve(harness, {
+      storage: { type: 'memory' },
+      transports: [webSocketServerTransport({ server: httpServer, path: '/super-line' })],
+    })
+    await new Promise<void>((resolve) => httpServer.listen(PORT, resolve))
+
+    const client = mkClient({ userId: 'canvas', resourceId: 'canvas' })
+    cleanup = () => {
+      client.close()
+      close()
+      httpServer.close()
+    }
+
+    let turns: string[] = []
+    await client['harness.join']({ threadId: 't-minted' })
+    const stop = subscribeTree(client as never, 't-minted', (tree) => {
+      turns = tree.turns
+    })
+
+    await client['harness.sendMessage']({ threadId: 't-minted', message: 'hello' })
+    for (let i = 0; i < 300 && turns.length === 0; i++) await sleep(20)
+    stop()
+
+    expect(turns).toHaveLength(1)
+  })
+
   it('broadcasts suspended over the wire and resumes via resumeMessage', async () => {
     const registry = new Map<string, SubagentEntry>()
     registry.set('supervisor', {

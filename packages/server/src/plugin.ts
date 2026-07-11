@@ -13,7 +13,7 @@
 // Auth-agnostic: it reads ctx.userId (the principal) however the host supplies it
 // (query-param dev auth, @super-line/plugin-auth, or the host's own scheme).
 
-import { SuperLineError, eq, isIn } from '@super-line/core'
+import { SuperLineError, eq, isIn, or } from '@super-line/core'
 import type { Conn, PluginContext, SuperLinePlugin } from '@super-line/server'
 import { Projector, type Harness } from '@super-harness/core'
 import {
@@ -276,12 +276,15 @@ export function harness(engine: Harness, opts: HarnessPluginOptions = {}): Super
       [HARNESS_MEMBERSHIP]: { read: (principal) => eq('userId', principal) },
       [HARNESS_NODES]: { read: async (principal) => isIn('threadId', await joined(principal)) },
       [HARNESS_TOOLS]: { read: async (principal) => isIn('threadId', await joined(principal)) },
-      // Thread LIST = your resource's threads (sidebar); falls back to membership
-      // when the connection carries no resourceId (backward-compat / dev auth).
+      // Thread LIST = your resource's threads (sidebar) UNIONED with threads you
+      // joined. Membership must never be masked by resourceId: a client-minted
+      // thread (join + send, no createThread) has no resourceId on its row, and
+      // an eq-only filter would hide the caller's OWN thread — empty turns.
       [HARNESS_THREADS]: {
         read: async (principal, ctx) => {
           const rid = (ctx as HarnessCtx)?.resourceId
-          return rid ? eq('resourceId', rid) : isIn('id', await joined(principal))
+          const mine = isIn('id', await joined(principal))
+          return rid ? or(eq('resourceId', rid), mine) : mine
         },
       },
     },

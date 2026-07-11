@@ -229,7 +229,18 @@ const supervisor = new Agent({
 const engine = createHarness({
   supervisor,
   memory: mem(), // enables harness.listThreads (client calls it on connect) + recall
-  permissions: { tools: { clear_board: "ask" } },
+  // The core's fallback for a tool with no rule is 'ask' (built-ins excepted),
+  // so every agent-registered tool needs an explicit entry — list the four
+  // ungated canvas tools as 'allow' or they ALL gate, not just clear_board.
+  permissions: {
+    tools: {
+      add_shape: "allow",
+      move_shape: "allow",
+      restyle_shape: "allow",
+      delete_shape: "allow",
+      clear_board: "ask",
+    },
+  },
   maxSteps: 30, // a multi-shape edit is many tool steps; Mastra's default (~5) would cut it off
   generateTitle: {
     model: gateway("anthropic/claude-haiku-4.5"),

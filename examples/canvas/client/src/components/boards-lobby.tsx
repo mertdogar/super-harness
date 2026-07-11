@@ -32,8 +32,12 @@ export function BoardsLobby({
   activeBoardId: string
   onSelect: (id: string) => void
 }) {
+  // Deliberately NO cleanup() on unmount: StrictMode remounts reuse this
+  // memoized collection, and a cleaned-up TanStack collection (0.5.x) never
+  // restarts sync — the lobby would stay empty forever. The collection's real
+  // lifetime is the sl client's: a node swap closes the old socket (ending its
+  // sync feed), and the seq-suffixed id keeps the registry collision-free.
   const boards = useMemo(() => boardsCollection(sl), [sl])
-  useEffect(() => () => void boards.cleanup(), [boards])
   const { data } = useLiveQuery((q) => q.from({ b: boards }).orderBy(({ b }) => b.createdAt, "asc"), [boards])
 
   const [notice, setNotice] = useState<string | null>(null)

@@ -17,7 +17,10 @@ Postgres + Electric docker cluster.
 - **Gating is keyed by tool NAME in three places** that must match:
   `createTool({ id: "clear_board" })`, the Agent key `tools: { clear_board }`,
   and `permissions: { tools: { clear_board: "ask" } }`. Miss one and the gate
-  silently never arms.
+  silently never arms. AND: the core's fallback for any agent-registered tool
+  with no rule is **`ask`** (built-ins excepted) — the four ungated canvas
+  tools are listed as explicit `allow` or every tool would gate, not just
+  `clear_board`.
 - **The `[board:<id>]` prefix is the board-routing convention.** The client
   prefixes every sent message with `[board:<activeBoardId>] ` (App.tsx); the
   supervisor's instructions tell it to pass that id as `boardId` to EVERY tool.
