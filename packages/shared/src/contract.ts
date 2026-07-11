@@ -49,10 +49,11 @@ export type ModeInfo = z.infer<typeof modeInfoSchema>
 // Inline attachment on sendMessage: a data URL (or fetchable URL) folded into
 // the user message. image/* (or no mimeType) becomes an image content part;
 // any other mimeType becomes a file part (PDFs, text — whatever the provider
-// accepts).
+// accepts). `name` is display metadata (chips, list_attachments-style tools).
 export const fileAttachmentSchema = z.object({
   url: z.string(),
   mimeType: z.string().optional(),
+  name: z.string().optional(),
 })
 export type FileAttachment = z.infer<typeof fileAttachmentSchema>
 

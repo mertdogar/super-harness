@@ -7,13 +7,17 @@
 //   pnpm -F @super-harness/web-server dev        # tsx watch, loads root .env
 //   pnpm -F @super-harness/web-client dev        # vite on :5173, in another shell
 //
-// Needs AI_GATEWAY_API_KEY in the root .env. Model via CHAT_MODEL (default haiku).
+// Needs AI_GATEWAY_API_KEY in the root .env. Models via CHAT_MODEL /
+// CHAT_MODEL_SMART (fast tier defaults to haiku, smart tier to sonnet); the
+// Fast/Smart mode picker switches tiers per thread via mode metadata + the
+// requestContext hook.
 import { existsSync } from "node:fs"
 import type { Server } from "node:http"
 import { Hono } from "hono"
 import { serve as serveHttp } from "@hono/node-server"
 import { serveStatic } from "@hono/node-server/serve-static"
 import { Agent } from "@mastra/core/agent"
+import { RequestContext } from "@mastra/core/request-context"
 import { createTool } from "@mastra/core/tools"
 import { Memory } from "@mastra/memory"
 import { LibSQLStore } from "@mastra/libsql"
@@ -31,11 +35,22 @@ import { harness, harnessContract } from "@super-harness/server"
 import { createLibp2pAdapter } from '@super-line/adapter-libp2p'
 
 const PORT = Number(process.env.SUPER_HARNESS_PORT ?? 4111)
+// Model TIERS, selected per thread by the mode picker: each harness mode's
+// metadata carries {model1 (supervisor), model2 (worker)}; the engine's
+// requestContext hook copies them into the turn context, and both agents'
+// `model` resolvers read them back. MODEL is the fast tier / fallback.
 const MODEL = process.env.CHAT_MODEL ?? "anthropic/claude-haiku-4.5"
+const MODEL_SMART = process.env.CHAT_MODEL_SMART ?? "anthropic/claude-sonnet-4.5"
 if (!process.env.AI_GATEWAY_API_KEY) {
   console.error("AI_GATEWAY_API_KEY is not set (put it in the root .env)")
   process.exit(2)
 }
+
+// Read a tier off the turn context (set by the requestContext hook below);
+// absent (no modes, tests, resume edge) falls back to the fast model.
+const tierModel = (key: "model1" | "model2") =>
+  ({ requestContext }: { requestContext: RequestContext }) =>
+    gateway((requestContext.get(key) as string | undefined) ?? MODEL)
 
 
 
@@ -123,7 +138,7 @@ const worker = new Agent({
   id: "worker",
   name: "Worker",
   instructions: "You are a focused worker. Use your weather tool to get real data, then report a short, concrete result.",
-  model: gateway(MODEL),
+  model: tierModel("model2"),
   tools: { weather: weatherTool },
 })
 
@@ -134,8 +149,9 @@ const supervisor = new Agent({
     "You coordinate a `worker` subagent that has a live weather tool.",
     "For any weather/data question you MUST delegate to the worker via the delegate tool (do not answer from memory), then summarize its report in one short sentence.",
     "When the user asks you to send or email a report, compose it from the conversation and call send_report — it is approval-gated, so a human confirms before it runs.",
+    "The user may attach images to a message; you see them inline — describe or use them directly.",
   ].join(" "),
-  model: gateway(MODEL),
+  model: tierModel("model1"),
   tools: { send_report: sendReportTool },
   memory: mem(),
 })
@@ -152,18 +168,44 @@ const engine = createHarness({
   subagents: [{ agent: worker }],
   memory: mem(), // enables the thread sidebar + per-thread mode persistence
   resourceFor: () => RESOURCE,
+  // Modes are model TIERS here (the tomorrow-kits pattern): metadata carries the
+  // per-tier models, the requestContext hook below copies them into the turn
+  // context, and the agents' model resolvers read them back. Instructions still
+  // overlay per mode — a mode can carry both.
   modes: [
-    { id: "chat", name: "Chat", instructions: "Answer conversationally.", metadata: { default: true } },
-    { id: "terse", name: "Terse", instructions: "Reply in one short sentence, no pleasantries." },
+    {
+      id: "fast",
+      name: "Fast",
+      description: "Haiku everywhere — quick answers",
+      instructions: "Answer conversationally.",
+      metadata: { default: true, model1: MODEL, model2: MODEL },
+    },
+    {
+      id: "smart",
+      name: "Smart",
+      description: "Sonnet supervisor, Haiku worker",
+      metadata: { model1: MODEL_SMART, model2: MODEL },
+    },
   ],
+  // The per-turn host context: called once per turn (resumes included) with the
+  // resolved mode + the message's attachments. Tier models ride the context to
+  // BOTH agents' model resolvers — supervisor and delegated worker alike.
+  requestContext: ({ mode }) => {
+    const rc = new RequestContext()
+    const meta = (mode?.metadata ?? {}) as { model1?: string; model2?: string }
+    if (meta.model1) rc.set("model1", meta.model1)
+    if (meta.model2) rc.set("model2", meta.model2)
+    return rc
+  },
   permissions: { tools: { send_report: "ask" } },
   generateTitle: {
     model: gateway("anthropic/claude-haiku-4.5"),
-    // Mastra's own default title prompt spells out "the entire text you
-    // return will be used as the title" — without that framing haiku treats
-    // this as a style hint and answers the user's message instead of titling it.
+    // Title generation gets only the message TEXT (never its attachments), so a
+    // message like "describe this image" reads as referencing something absent —
+    // spell out that the model must TITLE it, never answer it, or the title
+    // becomes "I don't see any image…".
     instructions:
-      "Reply with ONLY a short 3-5 word title summarizing the user's message — no quotes, no trailing punctuation, no commentary. The exact text you return will be used as the title.",
+      "Reply with ONLY a short 3-5 word title (a topic noun phrase) for the user's message — no quotes, no punctuation, no commentary. NEVER answer or respond to the message, even if it references an image or file you cannot see; in that case title it by its words (e.g. 'Image color question'). The exact text you return becomes the title.",
   },
 })
 

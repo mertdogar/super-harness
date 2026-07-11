@@ -620,13 +620,15 @@ describe('harness: per-turn request context', () => {
         return token
       },
     })
-    await harness.sendMessage({ threadId: 't1', content: 'go' })
+    const png = { url: 'data:image/png;base64,AAAA', mimeType: 'image/png', name: 'logo.png' }
+    await harness.sendMessage({ threadId: 't1', content: 'go', files: [png] })
 
     expect(hookArgs).toHaveLength(1)
     expect(hookArgs[0]).toMatchObject({
       threadId: 't1',
       resource: 't1',
       mode: { id: 'ultra', metadata: { model1: 'opus', model2: 'sonnet' } },
+      files: [png], // the hook is the host's only server-side seam to attachments
     })
     expect(rootOpts[0].requestContext).toBe(token)
     expect(childOpts[0].requestContext).toBe(token)

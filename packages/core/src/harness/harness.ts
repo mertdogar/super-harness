@@ -112,12 +112,16 @@ export interface SubagentEntry {
   makeRunner: (node: NodeEnvelope, runtime: HarnessRuntime) => AgentRunner
 }
 
-// What the per-turn context hook sees: the turn's thread/resource identity and
-// the resolved mode (its metadata carries host config like model tiers).
+// What the per-turn context hook sees: the turn's thread/resource identity, the
+// resolved mode (its metadata carries host config like model tiers), and the
+// message's attachments — the ONLY server-side seam to them, so a host that
+// wants tools to consume attachments stashes them here (the model cannot
+// retype a data URL into tool args). Resumes carry no files.
 export interface TurnContextArgs {
   threadId: string
   resource: string
   mode?: HarnessMode
+  files?: FileAttachment[]
 }
 
 export interface EngineConfig {
@@ -332,7 +336,7 @@ export class Harness {
         mode = await this.#currentMode(threadId)
         // Resolved per turn — resumes included, so a host that builds per-turn
         // state (credentials, toolsets, renderers) rebuilds it here too.
-        st.turnContext = await this.cfg.requestContext?.({ threadId, resource, mode })
+        st.turnContext = await this.cfg.requestContext?.({ threadId, resource, mode, files })
       } catch (err) {
         // A pre-node failure must land in the tree — the wire fires sendMessage
         // without awaiting it, so without these events the message just vanishes

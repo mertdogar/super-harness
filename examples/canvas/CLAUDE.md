@@ -18,9 +18,16 @@ Postgres + Electric docker cluster.
   `createTool({ id: "clear_board" })`, the Agent key `tools: { clear_board }`,
   and `permissions: { tools: { clear_board: "ask" } }`. Miss one and the gate
   silently never arms. AND: the core's fallback for any agent-registered tool
-  with no rule is **`ask`** (built-ins excepted) — the five ungated canvas
+  with no rule is **`ask`** (built-ins excepted) — the six ungated canvas
   tools are listed as explicit `allow` or every tool would gate, not just
   `clear_board`.
+- **Attachments reach tools ONLY via the `requestContext` hook.** The engine's
+  hook stashes the turn's files on the RequestContext (`ATTACHMENTS_KEY`);
+  `list_attachments` reads them back. The model sees attached images inline
+  (vision) but cannot retype a data URL into tool args — remove the hook and
+  the tool always reports zero attachments. Client chips are live-only
+  (FIFO-matched to the next root turn by its board-prefixed task text; not
+  persisted — a reload shows just the text).
 - **`list_shapes` is the agent's ONLY eyes on the board.** The upstream
   ai-canvas-pglite example injects the scene into the system prompt per turn;
   a persistent Agent's instructions are static, so the read tool is the

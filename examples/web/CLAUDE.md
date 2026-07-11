@@ -6,7 +6,19 @@ Two workspace packages (glob `examples/web/*`): `server/` (Hono +
 
 - Server loads the **root** `.env` (`tsx --env-file=../../../.env`); exits 2
   without `AI_GATEWAY_API_KEY`. `SUPER_HARNESS_PORT` (4111) / `CHAT_MODEL`
-  override.
+  (fast tier, default haiku) / `CHAT_MODEL_SMART` (default sonnet) override.
+- **Modes are model TIERS** (the tomorrow-kits pattern): each mode's `metadata`
+  carries `{model1, model2}`, the engine's `requestContext` hook copies them
+  into the turn context, and BOTH agents' `model` are resolvers reading them
+  back (`tierModel`) — so the header mode picker switches the supervisor AND
+  the delegated worker per thread. Fast = haiku everywhere; Smart = sonnet
+  supervisor. A mode can carry instruction overlays too (Fast does).
+- **Attachments are live-only chips.** The composer's `PromptInput` converts
+  picked files to data URLs on submit (registry behavior); `onSubmit` maps them
+  to wire `FileAttachment`s (`image/*` only, 5MB cap) and calls
+  `harness.send(text, files)`. Chips render from client state, FIFO-matched to
+  the next new root turn with the same task text — attachments are NOT
+  persisted in the tree, so a reload shows just the text.
 - WS transport attaches to the node server **returned by** `@hono/node-server`'s
   `serve()` — upgrade requests on `/super-line` never reach Hono routing, so no
   Hono WS adapter is involved.

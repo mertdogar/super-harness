@@ -2,16 +2,24 @@
 // board's CRDT scene doc) on the left, the harness chat on the right — the
 // same composition as plan-board's chat panel, but every sent message is
 // prefixed with "[board:<id>] " so the supervisor knows which scene to edit.
-// The clear_board approval gate lands in the shared ApprovalDialog.
-import { useState } from "react"
+// The clear_board approval gate lands in the shared ApprovalDialog. Image
+// attachments ride harness.send(text, files) — the agent sees them inline and
+// list_attachments enumerates them server-side; chips here are LIVE-ONLY
+// (attachments aren't persisted in the tree — a reload shows just the text).
+import { useEffect, useRef, useState } from "react"
 import { useHarness, useHarnessClient, type PendingAsk } from "@super-harness/react"
-import type { TokenUsage } from "@super-harness/shared"
-import { MessageCircleQuestionIcon, XIcon } from "lucide-react"
+import type { FileAttachment, TokenUsage } from "@super-harness/shared"
+import { MessageCircleQuestionIcon, PaperclipIcon, XIcon } from "lucide-react"
 import { Message, MessageContent } from "@/components/ai-elements/message"
 import {
   PromptInput,
+  PromptInputAttachment,
+  PromptInputAttachments,
+  PromptInputButton,
+  PromptInputFooter,
   PromptInputSubmit,
   PromptInputTextarea,
+  usePromptInputAttachments,
   type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input"
 import { Badge } from "@/components/ui/badge"
@@ -23,6 +31,71 @@ import { BoardCanvas } from "@/components/board-canvas"
 import { useDoc } from "@/hooks/use-doc"
 import { DEFAULT_BOARD_ID } from "../../shared/scene"
 import type { CanvasClient } from "@/lib/client"
+
+// The PromptInput's files are FileUIPart with data URLs (converted on submit).
+function toWireFiles(files: PromptInputMessage["files"]): FileAttachment[] {
+  return files
+    .filter((f) => f.url?.startsWith("data:"))
+    .map((f) => ({ url: f.url, mimeType: f.mediaType, name: f.filename }))
+}
+
+// Paperclip in the composer footer — must live inside PromptInput's context.
+function AttachButton() {
+  const attachments = usePromptInputAttachments()
+  return (
+    <PromptInputButton onClick={() => attachments.openFileDialog()} aria-label="Attach images">
+      <PaperclipIcon className="size-4" />
+    </PromptInputButton>
+  )
+}
+
+// Live-only chips: attachments aren't persisted in the tree, so remember what
+// this session sent and pin each to the next unmatched root turn whose task
+// equals the sent (board-prefixed) text. A reload renders just the text.
+//
+// The assignment (p.turnId = id) is an idempotent ref mutation done in the
+// effect body, NOT inside the setState updater — an impure updater would be
+// double-run by StrictMode and drop the match. `byTurn` is derived purely.
+function useSentAttachments(tree: ReturnType<typeof useHarness>["tree"]) {
+  const pending = useRef<{ text: string; files: FileAttachment[]; turnId?: string }[]>([])
+  const [byTurn, setByTurn] = useState<Record<string, FileAttachment[]>>({})
+  useEffect(() => {
+    const taken = new Set(Object.keys(byTurn))
+    let next: Record<string, FileAttachment[]> | undefined
+    for (const id of tree.turns) {
+      if (taken.has(id)) continue
+      const p = pending.current.find((p) => !p.turnId && tree.nodes[id]?.task === p.text)
+      if (!p) continue
+      p.turnId = id
+      taken.add(id)
+      next = { ...(next ?? byTurn), [id]: p.files }
+    }
+    if (next) setByTurn(next)
+  }, [tree, byTurn])
+  return { byTurn, remember: (text: string, files: FileAttachment[]) => pending.current.push({ text, files }) }
+}
+
+function AttachmentChips({ files }: { files: FileAttachment[] }) {
+  return (
+    <div className="flex flex-wrap justify-end gap-1.5">
+      {files.map((f, i) =>
+        f.mimeType?.startsWith("image/") || !f.mimeType ? (
+          <img
+            key={i}
+            src={f.url}
+            alt={f.name ?? "attachment"}
+            title={f.name}
+            className="h-16 w-16 rounded-md border object-cover"
+          />
+        ) : (
+          <span key={i} className="rounded-md border bg-muted px-2 py-1 text-muted-foreground text-xs">
+            {f.name ?? f.mimeType}
+          </span>
+        ),
+      )}
+    </div>
+  )
+}
 
 export default function App({
   sl,
@@ -40,12 +113,19 @@ export default function App({
   const { tree, connected, busy, pendingAsk, pendingApproval, notice, queued } = state
   const [activeBoardId, setActiveBoardId] = useState(DEFAULT_BOARD_ID)
   const doc = useDoc(sl, activeBoardId)
+  const sent = useSentAttachments(tree)
 
   const onSubmit = async (message: PromptInputMessage) => {
-    const text = message.text?.trim()
-    if (!text) return
-    if (pendingAsk) await harness.reply(text)
-    else await harness.send(`[board:${activeBoardId}] ${text}`)
+    const text = message.text?.trim() ?? ""
+    const files = toWireFiles(message.files ?? [])
+    if (!text && !files.length) return
+    if (pendingAsk) {
+      await harness.reply(text)
+      return
+    }
+    const prefixed = `[board:${activeBoardId}] ${text}`
+    if (files.length) sent.remember(prefixed, files)
+    await harness.send(prefixed, files.length ? files : undefined)
   }
 
   return (
@@ -87,19 +167,23 @@ export default function App({
               </p>
             )}
             {notice && <p className="text-destructive text-xs">{notice}</p>}
-            <PromptInput onSubmit={onSubmit}>
+            <PromptInput onSubmit={onSubmit} accept="image/*" multiple maxFileSize={5 * 1024 * 1024}>
+              <PromptInputAttachments>{(file) => <PromptInputAttachment data={file} />}</PromptInputAttachments>
               <PromptInputTextarea
                 autoFocus
                 placeholder={
                   pendingAsk ? "Reply to the agent…" : 'Ask the agent — e.g. "add three blue squares in a row"'
                 }
               />
-              <div className="flex items-center justify-end gap-2 p-2">
+              {/* PromptInputFooter is the block-end addon that flips the InputGroup
+                  to column layout — a plain div here collapses the textarea. */}
+              <PromptInputFooter>
+                <AttachButton />
                 <PromptInputSubmit
                   status={busy ? "streaming" : undefined}
                   onClick={busy ? (e) => { e.preventDefault(); void harness.abort() } : undefined}
                 />
-              </div>
+              </PromptInputFooter>
             </PromptInput>
           </section>
 
@@ -112,11 +196,15 @@ export default function App({
             ) : (
               tree.turns.map((id) => {
                 const root = tree.nodes[id]
+                const chips = sent.byTurn[id]
                 return (
                   <div key={id} className="flex flex-col gap-3">
-                    {root?.task && (
+                    {(root?.task || chips) && (
                       <Message from="user">
-                        <MessageContent>{root.task}</MessageContent>
+                        <div className="flex flex-col items-end gap-1.5">
+                          {chips && <AttachmentChips files={chips} />}
+                          {root?.task && <MessageContent>{root.task}</MessageContent>}
+                        </div>
                       </Message>
                     )}
                     <Message from="assistant">

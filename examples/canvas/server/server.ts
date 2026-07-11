@@ -26,7 +26,8 @@ import { memoryCollections } from "@super-line/collections-memory"
 import { crdtMemoryCollections } from "@super-line/collections-crdt-memory"
 import { webSocketServerTransport } from "@super-line/transport-websocket"
 import { inspector } from "@super-line/plugin-inspector"
-import { createHarness } from "@super-harness/core"
+import { RequestContext } from "@mastra/core/request-context"
+import { createHarness, type FileAttachment } from "@super-harness/core"
 import { harness } from "@super-harness/server"
 import { contract } from "../shared/contract.js"
 import { COLORS, DEFAULT_BOARD_ID, newShapeId, readShapes, topOrder, type Scene } from "../shared/scene.js"
@@ -205,6 +206,40 @@ const deleteShapeTool = createTool({
     }),
 })
 
+// The turn's attachments, stashed on the RequestContext by the engine's
+// requestContext hook below. This is the ONLY way a tool can reach an attached
+// file — the model sees images inline but cannot retype a data URL into args.
+const ATTACHMENTS_KEY = "attachments"
+
+const listAttachmentsTool = createTool({
+  id: "list_attachments",
+  description:
+    "List the files the user attached to their CURRENT message — index, name, type, size. You already see attached images inline; call this when you need to enumerate or reference them explicitly.",
+  inputSchema: z.object({}),
+  outputSchema: z.object({
+    attachments: z.array(
+      z.object({
+        index: z.number(),
+        name: z.string().optional(),
+        mimeType: z.string().optional(),
+        sizeKB: z.number(),
+      }),
+    ),
+  }),
+  execute: async (_input, ctx) => {
+    const files = (ctx?.requestContext?.get(ATTACHMENTS_KEY) as FileAttachment[] | undefined) ?? []
+    return {
+      attachments: files.map((f, index) => ({
+        index,
+        name: f.name,
+        mimeType: f.mimeType,
+        // data URLs are base64: ~3/4 of the string length is payload bytes.
+        sizeKB: Math.round((f.url.length * 3) / 4 / 1024),
+      })),
+    }
+  },
+})
+
 // Approval-gated: the name must match in three places — this id, the Agent
 // tools key, and permissions.tools below — or the gate silently never arms.
 const clearBoardTool = createTool({
@@ -232,6 +267,7 @@ const supervisor = new Agent({
     "You co-edit a shared visual canvas with the user, live. Each shape is a labelled square on a board.",
     'Every user message is prefixed with the board it was sent from, e.g. "[board:B_abc123] add a red square" — that id names the board to edit. Pass it as boardId to EVERY tool call.',
     "The user adds, drags, and deletes shapes on the same board while you chat, so your memory of the board is always stale — call list_shapes first whenever you edit or reason about existing shapes.",
+    "The user may attach images to a message — you see them inline (e.g. recreate an attached layout with shapes); list_attachments enumerates what arrived with the current message.",
     "Make every edit by calling tools — never describe an edit without doing it.",
     "Positions: x and y are 0..380, top-left origin. Prefer the palette: " + COLORS.join(", ") + ".",
     "clear_board wipes the whole board and is human-approval-gated — call it only when the user explicitly asks to clear or wipe the board, never as a shortcut.",
@@ -240,6 +276,7 @@ const supervisor = new Agent({
   model: gateway(MODEL),
   tools: {
     list_shapes: listShapesTool,
+    list_attachments: listAttachmentsTool,
     add_shape: addShapeTool,
     move_shape: moveShapeTool,
     restyle_shape: restyleShapeTool,
@@ -252,12 +289,21 @@ const supervisor = new Agent({
 const engine = createHarness({
   supervisor,
   memory: mem(), // enables harness.listThreads (client calls it on connect) + recall
+  // The per-turn host context: called once per turn with the message's
+  // attachments — the ONLY server-side seam to them. list_attachments reads
+  // them back off the RequestContext.
+  requestContext: ({ files }) => {
+    const rc = new RequestContext()
+    rc.set(ATTACHMENTS_KEY, files ?? [])
+    return rc
+  },
   // The core's fallback for a tool with no rule is 'ask' (built-ins excepted),
-  // so every agent-registered tool needs an explicit entry — list the five
+  // so every agent-registered tool needs an explicit entry — list the six
   // ungated canvas tools as 'allow' or they ALL gate, not just clear_board.
   permissions: {
     tools: {
       list_shapes: "allow",
+      list_attachments: "allow",
       add_shape: "allow",
       move_shape: "allow",
       restyle_shape: "allow",
@@ -268,8 +314,11 @@ const engine = createHarness({
   maxSteps: 30, // a multi-shape edit is many tool steps; Mastra's default (~5) would cut it off
   generateTitle: {
     model: gateway("anthropic/claude-haiku-4.5"),
+    // Title generation gets only the message TEXT (never its attachments), and
+    // canvas messages are board-prefixed ("[board:x] ..."). Spell out that the
+    // model must TITLE the message, never answer it or echo the prefix.
     instructions:
-      "Reply with ONLY a short 3-5 word title summarizing the user's message — no quotes, no trailing punctuation, no commentary. The exact text you return will be used as the title.",
+      "Reply with ONLY a short 3-5 word title (a topic noun phrase) for the user's message — no quotes, no punctuation, no commentary, and ignore any leading [board:...] tag. NEVER answer or respond to the message, even if it references an image you cannot see. The exact text you return becomes the title.",
   },
 })
 
