@@ -57,14 +57,22 @@ function AttachButton() {
 // effect body, NOT inside the setState updater — an impure updater would be
 // double-run by StrictMode and drop the match. `byTurn` is derived purely.
 function useSentAttachments(tree: ReturnType<typeof useHarness>["tree"]) {
-  const pending = useRef<{ text: string; files: FileAttachment[]; turnId?: string }[]>([])
+  const pending = useRef<{ text: string; files: FileAttachment[]; before: Set<string>; turnId?: string }[]>([])
+  const turnsRef = useRef(tree.turns)
+  turnsRef.current = tree.turns
   const [byTurn, setByTurn] = useState<Record<string, FileAttachment[]>>({})
   useEffect(() => {
     const taken = new Set(Object.keys(byTurn))
     let next: Record<string, FileAttachment[]> | undefined
     for (const id of tree.turns) {
       if (taken.has(id)) continue
-      const p = pending.current.find((p) => !p.turnId && tree.nodes[id]?.task === p.text)
+      // Match a send to a turn that appeared AFTER it (p.before excludes the
+      // turns already present when we sent), and normalize task to "" (core
+      // stores it as `input || undefined`; the board prefix keeps it non-empty
+      // today, but this stays correct if that ever changes).
+      const p = pending.current.find(
+        (p) => !p.turnId && !p.before.has(id) && (tree.nodes[id]?.task ?? "") === p.text,
+      )
       if (!p) continue
       p.turnId = id
       taken.add(id)
@@ -72,7 +80,11 @@ function useSentAttachments(tree: ReturnType<typeof useHarness>["tree"]) {
     }
     if (next) setByTurn(next)
   }, [tree, byTurn])
-  return { byTurn, remember: (text: string, files: FileAttachment[]) => pending.current.push({ text, files }) }
+  return {
+    byTurn,
+    remember: (text: string, files: FileAttachment[]) =>
+      pending.current.push({ text, files, before: new Set(turnsRef.current) }),
+  }
 }
 
 function AttachmentChips({ files }: { files: FileAttachment[] }) {
@@ -114,8 +126,11 @@ export default function App({
   const [activeBoardId, setActiveBoardId] = useState(DEFAULT_BOARD_ID)
   const doc = useDoc(sl, activeBoardId)
   const sent = useSentAttachments(tree)
+  // Attachment rejections (too big / wrong type) are otherwise silent.
+  const [fileError, setFileError] = useState<string | null>(null)
 
   const onSubmit = async (message: PromptInputMessage) => {
+    setFileError(null)
     const text = message.text?.trim() ?? ""
     const files = toWireFiles(message.files ?? [])
     if (!text && !files.length) return
@@ -167,7 +182,14 @@ export default function App({
               </p>
             )}
             {notice && <p className="text-destructive text-xs">{notice}</p>}
-            <PromptInput onSubmit={onSubmit} accept="image/*" multiple maxFileSize={5 * 1024 * 1024}>
+            {fileError && <p className="text-destructive text-xs">{fileError}</p>}
+            <PromptInput
+              onSubmit={onSubmit}
+              onError={(err) => setFileError(err.message)}
+              accept="image/*"
+              multiple
+              maxFileSize={5 * 1024 * 1024}
+            >
               <PromptInputAttachments>{(file) => <PromptInputAttachment data={file} />}</PromptInputAttachments>
               <PromptInputTextarea
                 autoFocus

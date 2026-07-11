@@ -18,7 +18,12 @@ import { createTool } from "@mastra/core/tools"
 import { Memory } from "@mastra/memory"
 import { LibSQLStore } from "@mastra/libsql"
 import { PostgresStore } from "@mastra/pg"
-import { gateway } from "@ai-sdk/gateway"
+// gateway comes from `ai` (not `@ai-sdk/gateway` directly): the standalone
+// gateway 4.x is incompatible with this AI-SDK/Mastra message format on
+// multi-step image turns (a user-attached image + a tool call → gateway
+// "Invalid input" on the continuation step). The `ai`-bundled gateway (3.x)
+// round-trips images through tool steps — which the attachment demo needs.
+import { gateway } from "ai"
 import { z } from "zod"
 import type { CrdtServerReplica } from "@super-line/core"
 import { createSuperLineServer, type ServerCrdtCollectionHandle } from "@super-line/server"

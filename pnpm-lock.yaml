@@ -377,9 +377,6 @@ importers:
 
   examples/canvas/server:
     dependencies:
-      '@ai-sdk/gateway':
-        specifier: ^4.0.3
-        version: 4.0.8(zod@4.4.3)
       '@libsql/client':
         specifier: ^0.17.4
         version: 0.17.4
@@ -431,6 +428,9 @@ importers:
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
+      ai:
+        specifier: ^6.0.0
+        version: 6.0.219(zod@4.4.3)
       tsx:
         specifier: ^4.21.0
         version: 4.22.5

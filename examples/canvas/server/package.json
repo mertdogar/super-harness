@@ -11,7 +11,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/gateway": "^4.0.3",
     "@libsql/client": "^0.17.4",
     "@mastra/core": "1.49.0-alpha.2",
     "@mastra/libsql": "^1.14.3",
@@ -29,6 +28,7 @@
     "@super-line/plugin-inspector": "^0.2.0",
     "@super-line/server": "^0.11.0",
     "@super-line/transport-websocket": "^0.6.0",
+    "ai": "^6.0.0",
     "tsx": "^4.21.0",
     "zod": "^4.4.3"
   },
