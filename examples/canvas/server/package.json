@@ -1,0 +1,39 @@
+{
+  "name": "@super-harness/canvas-server",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Canvas example backend: a harness supervisor co-editing shared CRDT scene documents through canvas tools, with an approval-gated clear_board.",
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file=../../../.env server.ts",
+    "start": "tsx --env-file=../../../.env server.ts",
+    "inspect": "pnpm dlx @super-line/control-center --url ws://localhost:4116/super-line",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "^4.0.3",
+    "@libsql/client": "^0.17.4",
+    "@mastra/core": "1.49.0-alpha.2",
+    "@mastra/libsql": "^1.14.3",
+    "@mastra/memory": "^1.22.0",
+    "@mastra/pg": "^1.14.3",
+    "@super-harness/core": "workspace:*",
+    "@super-harness/server": "workspace:*",
+    "@super-harness/shared": "workspace:*",
+    "@super-line/adapter-libp2p": "^0.6.0",
+    "@super-line/collections-crdt-memory": "^0.1.0",
+    "@super-line/collections-crdt-pglite": "^0.1.0",
+    "@super-line/collections-memory": "^0.1.0",
+    "@super-line/collections-pglite": "^0.1.0",
+    "@super-line/core": "^0.11.0",
+    "@super-line/plugin-inspector": "^0.2.0",
+    "@super-line/server": "^0.11.0",
+    "@super-line/transport-websocket": "^0.6.0",
+    "tsx": "^4.21.0",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^25.6.0",
+    "typescript": "~5.8.3"
+  }
+}

@@ -1,0 +1,13 @@
+{
+  "name": "@super-harness/canvas-shared",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Canvas example, shared wire layer: the merged contract (harnessContract() + boards/scenes) and the scene-doc schema/helpers both halves import.",
+  "type": "module",
+  "main": "./contract.ts",
+  "dependencies": {
+    "@super-harness/shared": "workspace:*",
+    "@super-line/core": "^0.11.0",
+    "zod": "^4.4.3"
+  }
+}

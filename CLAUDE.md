@@ -47,6 +47,11 @@ Run the demo: `pnpm -F @super-harness/dev-server start` (needs
   (`plan-board/server`) + a plan-first client (`plan-board/client`) on web's
   shadcn/ai-elements stack, rendering the live plan, delegation, ask_user, and an
   approval gate. See its CLAUDE.md.
+- `examples/canvas` — the CRDT/cluster flagship: the supervisor co-edits
+  `document`-mode CRDT scene docs live beside the user's drags
+  (`canvas/{shared,server,client}`), with a TanStack DB boards lobby,
+  approval-gated `clear_board`, and a 2-node Postgres+Electric docker cluster.
+  See its CLAUDE.md.
 - `examples/mastra-playground` — standalone Mastra scratchpad, NOT wired to
   the harness.
 

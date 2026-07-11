@@ -205,6 +205,7 @@ settings:
 
 overrides:
   '@super-line/core': ^0.11.0
+  '@tanstack/react-db>@tanstack/db': 0.5.33
 
 importers:
 
@@ -267,6 +268,191 @@ importers:
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+
+  examples/canvas/client:
+    dependencies:
+      '@radix-ui/react-use-controllable-state':
+        specifier: ^1.2.3
+        version: 1.2.3(@types/react@19.2.17)(react@19.2.7)
+      '@super-harness/react':
+        specifier: workspace:*
+        version: link:../../../packages/react
+      '@super-harness/shared':
+        specifier: workspace:*
+        version: link:../../../packages/shared
+      '@super-line/client':
+        specifier: ^0.9.0
+        version: 0.9.0
+      '@super-line/collections-crdt-memory':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@super-line/core':
+        specifier: ^0.11.0
+        version: 0.11.0
+      '@super-line/tanstack-db':
+        specifier: ^0.1.1
+        version: 0.1.1(@tanstack/db@0.5.33(typescript@5.8.3))
+      '@super-line/transport-websocket':
+        specifier: ^0.6.0
+        version: 0.6.0
+      '@tanstack/db':
+        specifier: 0.5.33
+        version: 0.5.33(typescript@5.8.3)
+      '@tanstack/react-db':
+        specifier: 0.1.76
+        version: 0.1.76(react@19.2.7)(typescript@5.8.3)
+      ai:
+        specifier: ^7.0.11
+        version: 7.0.11(zod@4.4.3)
+      class-variance-authority:
+        specifier: ^0.7.1
+        version: 0.7.1
+      clsx:
+        specifier: ^2.1.1
+        version: 2.1.1
+      cmdk:
+        specifier: ^1.1.1
+        version: 1.1.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      lucide-react:
+        specifier: ^1.23.0
+        version: 1.23.0(react@19.2.7)
+      motion:
+        specifier: ^12.42.2
+        version: 12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      nanoid:
+        specifier: ^5.1.7
+        version: 5.1.16
+      radix-ui:
+        specifier: ^1.6.1
+        version: 1.6.1(@types/react-dom@19.2.3(@types/react@19.2.17))(@types/react@19.2.17)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      react:
+        specifier: ^19.2.0
+        version: 19.2.7
+      react-dom:
+        specifier: ^19.2.0
+        version: 19.2.7(react@19.2.7)
+      shiki:
+        specifier: ^4.3.0
+        version: 4.3.0
+      streamdown:
+        specifier: ^2.5.0
+        version: 2.5.0(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+      tailwind-merge:
+        specifier: ^3.3.1
+        version: 3.6.0
+      tw-animate-css:
+        specifier: ^1.4.0
+        version: 1.4.0
+      use-stick-to-bottom:
+        specifier: ^1.1.6
+        version: 1.1.6(react@19.2.7)
+    devDependencies:
+      '@tailwindcss/vite':
+        specifier: ^4.1.14
+        version: 4.3.2(vite@7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5))
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.9.4
+      '@types/react':
+        specifier: ^19.2.0
+        version: 19.2.17
+      '@types/react-dom':
+        specifier: ^19.2.0
+        version: 19.2.3(@types/react@19.2.17)
+      '@vitejs/plugin-react':
+        specifier: ^5.0.4
+        version: 5.2.0(vite@7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5))
+      tailwindcss:
+        specifier: ^4.1.14
+        version: 4.3.2
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+      vite:
+        specifier: ^7.1.7
+        version: 7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5)
+
+  examples/canvas/server:
+    dependencies:
+      '@ai-sdk/gateway':
+        specifier: ^4.0.3
+        version: 4.0.8(zod@4.4.3)
+      '@libsql/client':
+        specifier: ^0.17.4
+        version: 0.17.4
+      '@mastra/core':
+        specifier: 1.49.0-alpha.2
+        version: 1.49.0-alpha.2(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3)
+      '@mastra/libsql':
+        specifier: ^1.14.3
+        version: 1.14.3(@mastra/core@1.49.0-alpha.2(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))
+      '@mastra/memory':
+        specifier: ^1.22.0
+        version: 1.22.0(@mastra/core@1.49.0-alpha.2(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))
+      '@mastra/pg':
+        specifier: ^1.14.3
+        version: 1.14.3(@mastra/core@1.49.0-alpha.2(ai@6.0.219(zod@4.4.3))(express@5.2.1)(zod@4.4.3))
+      '@super-harness/core':
+        specifier: workspace:*
+        version: link:../../../packages/core
+      '@super-harness/server':
+        specifier: workspace:*
+        version: link:../../../packages/server
+      '@super-harness/shared':
+        specifier: workspace:*
+        version: link:../../../packages/shared
+      '@super-line/adapter-libp2p':
+        specifier: ^0.6.0
+        version: 0.6.0
+      '@super-line/collections-crdt-memory':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@super-line/collections-crdt-pglite':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@super-line/collections-memory':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@super-line/collections-pglite':
+        specifier: ^0.1.0
+        version: 0.1.0
+      '@super-line/core':
+        specifier: ^0.11.0
+        version: 0.11.0
+      '@super-line/plugin-inspector':
+        specifier: ^0.2.0
+        version: 0.2.0(@standard-schema/spec@1.1.0)(@super-line/server@0.11.0(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@super-line/server':
+        specifier: ^0.11.0
+        version: 0.11.0(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@super-line/transport-websocket':
+        specifier: ^0.6.0
+        version: 0.6.0
+      tsx:
+        specifier: ^4.21.0
+        version: 4.22.5
+      zod:
+        specifier: ^4.4.3
+        version: 4.4.3
+    devDependencies:
+      '@types/node':
+        specifier: ^25.6.0
+        version: 25.9.4
+      typescript:
+        specifier: ~5.8.3
+        version: 5.8.3
+
+  examples/canvas/shared:
+    dependencies:
+      '@super-harness/shared':
+        specifier: workspace:*
+        version: link:../../../packages/shared
+      '@super-line/core':
+        specifier: ^0.11.0
+        version: 0.11.0
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -2963,6 +3149,14 @@ packages:
     resolution: {integrity: sha512-Qtd/pIx/7nn9k5Uint4WKxMOH01juaX1LCB982ZcPRXFmo4HHQkiKsRxfLmILar3sd8flnupFHrLhgMVzH/rCA==}
     engines: {node: '>=18'}
 
+  '@super-line/collections-crdt-memory@0.1.0':
+    resolution: {integrity: sha512-8EfVXFdj+LXLYBs/oMbVPm+QGQqLzN8pdQ3DIyxNeILiKH9daX/fMoneJt5jainCN1bGkiB1DPCGRjOigPdpPg==}
+    engines: {node: '>=18'}
+
+  '@super-line/collections-crdt-pglite@0.1.0':
+    resolution: {integrity: sha512-nIvQoKJNWaVzm96KBroLH9q9g+fcMfE/CCKXl+zsTsBQQduLo19BLcyJAuJuBkXB9xXvxWZoMCk6WqERxe3TBA==}
+    engines: {node: '>=18'}
+
   '@super-line/collections-memory@0.1.0':
     resolution: {integrity: sha512-Jo1mzFJOuWTHzYw1FEcNQ1LKANg52vsxoCndz6sfJ0FuTQnMlkbQNkOmoden2myZRhdlb8YjxOc/q4KNJsI76g==}
     engines: {node: '>=18'}
@@ -3004,8 +3198,18 @@ packages:
     resolution: {integrity: sha512-dEH2KBM1bIGAyUy74A7UtPg7VpkBkUhHzj9tyNbGaMNBs/AKneoVyw7q06Jgni0hu82pG2z5aJlcSdDfnDkVJA==}
     engines: {node: '>=18'}
 
+  '@super-line/tanstack-db@0.1.1':
+    resolution: {integrity: sha512-+bCNEx/H9cim1lNd28YWN6MfcddgkHpSa44ISOZ9DTRIcQfcyiqoXX1IFtJQNIzwyC5Gcq84I6zRN6uzoV2kMA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@tanstack/db': '>=0.1'
+
   '@super-line/transport-websocket@0.6.0':
     resolution: {integrity: sha512-Qe5TbaArhFcvMpSsRVim58S3+VK0Qk6OtsBaCvuKkF4aiQvpx2SvoPYX9ntBNMwmx28+gvtAxrOUR5NPKkqU8w==}
+    engines: {node: '>=18'}
+
+  '@super-store/store@0.3.1':
+    resolution: {integrity: sha512-xN7WfnOKm1brCH5A+pAL7nEHzyLEcHthdvPq9j1BCY5igGoWV1qs20re7tpAB5pmNAFpMKqMHptjNUbbrnua+A==}
     engines: {node: '>=18'}
 
   '@tailwindcss/node@4.3.2':
@@ -3101,6 +3305,25 @@ packages:
     resolution: {integrity: sha512-eHpMeX4JXfVNJDEcsouTeCBubJBTcTLigeaw/NTUW6PB5ATKKXdyonnXgTBX2VuRbjz1hjfz6C5XAhr52ImQXA==}
     peerDependencies:
       vite: ^5.2.0 || ^6 || ^7 || ^8
+
+  '@tanstack/db-ivm@0.1.17':
+    resolution: {integrity: sha512-DK7vm56CDxNuRAdsbiPs+gITJ+16tUtYgZg3BRTLYKGIDsy8sdIO7sQFq5zl7Y+aIKAPmMAbVp9UjJ75FTtwgQ==}
+    peerDependencies:
+      typescript: '>=4.7'
+
+  '@tanstack/db@0.5.33':
+    resolution: {integrity: sha512-8pV3jZdqx6VgDubuddoT0UbQi8RrlCJ/kjhmgPIZUjvfhD3sz1TRMK4RTwOOf/JPTQ4qwWy5ggYLUTJxZZRB2w==}
+    peerDependencies:
+      typescript: '>=4.7'
+
+  '@tanstack/pacer-lite@0.2.2':
+    resolution: {integrity: sha512-eQ1MyLKCHyXiH7NbdmB80W77OhiMgGBUb+qDx/8WMGbwg5Lf/NlfD0TfNYAqY77i8V3AxoDoYdICrQE5ADw4Yw==}
+    engines: {node: '>=18'}
+
+  '@tanstack/react-db@0.1.76':
+    resolution: {integrity: sha512-XqsyBQy6p2dY5Zy99vevUfUMXqYn56jp5pIgGxvh5cBtVrgDoyGgAhqDmla0oeufdNEdr4F9A7ExT47XwLpJgg==}
+    peerDependencies:
+      react: '>=16.8.0'
 
   '@tokenizer/token@0.3.0':
     resolution: {integrity: sha512-OvjF+z51L3ov0OyAU0duzsYuvO01PH7x4t6DJx+guahgTnBHkhJdG7soQeTSFLWN3efnHyibZ4Z8l2EuWwJN3A==}
@@ -4067,6 +4290,10 @@ packages:
     resolution: {integrity: sha512-buRG0fpBtRHSTCOASe6hD258tEubFoRLb4ZNA6NxMVHNw2gOcwHo9wyablzMzOA5z9xA9L1KNjk/Nt6MT9aYow==}
     engines: {node: '>= 0.6'}
 
+  fractional-indexing@3.4.0:
+    resolution: {integrity: sha512-8J3glhz2rrpKG6KmI7wmJo3zH1VjeOpN+vTJSw1fOyO+Viqq3zX6/5NGh6oaZB2qIAYdOYuu5Dz9xp4faOO0Pg==}
+    engines: {node: ^14.13.1 || >=16.0.0}
+
   framer-motion@12.42.2:
     resolution: {integrity: sha512-5XY9luDiu0oHfHBjpDthFMh0ES+122w6p/papSJBweMkO8Sn+PW2QaEgRblQBpWFnuvZS5qvarpt/hO2pjGmnw==}
     peerDependencies:
@@ -4319,6 +4546,9 @@ packages:
   isexe@2.0.0:
     resolution: {integrity: sha512-RHxMLp9lnKHGHRng9QFhRCMbYAcVpn69smSGcq3f36xjgVVWThj4qqLbTLlq7Ssj8B+fIQ1EuCEGI2lKsyQeIw==}
 
+  isomorphic.js@0.2.5:
+    resolution: {integrity: sha512-PIeMbHqMt4DnUP3MA/Flc0HElYjMXArsw1qwJZcm9sqR8mq3l8NYizFMty0pWwE/tzIGH3EKK5+jes5mAr85yw==}
+
   it-all@3.0.11:
     resolution: {integrity: sha512-Gvqj6MO4GMLnFdtE68HZRpGBskNC+9+GQ+JevTGNYLyhjUuPhjDLU3jN1LpBemXJDW1bRSkczqA/qGyKlPKrcQ==}
 
@@ -4447,6 +4677,11 @@ packages:
 
   layout-base@2.0.1:
     resolution: {integrity: sha512-dp3s92+uNI1hWIpPGH3jK2kxE2lMjdXdr+DH8ynZHpd6PUlH6x6cbuXnoMmiNumznqaNO31xu9e79F0uuZ0JFg==}
+
+  lib0@0.2.117:
+    resolution: {integrity: sha512-DeXj9X5xDCjgKLU/7RR+/HQEVzuuEUiwldwOGsHK/sfAfELGWEyTcf0x+uOvCvK3O2zPmZePXWL85vtia6GyZw==}
+    engines: {node: '>=16'}
+    hasBin: true
 
   libp2p@3.3.4:
     resolution: {integrity: sha512-K/B7XNepJcDB8g+M36Uh6wQDmhPyN5pyEsVwJPBtrXjouC0xBFmU9z5gRh2phRD0oRj9xvIZQwklo2v3zH4AiQ==}
@@ -5470,6 +5705,9 @@ packages:
   sonic-boom@4.2.1:
     resolution: {integrity: sha512-w6AxtubXa2wTXAUsZMMWERrsIRAdrK0Sc+FUytWvYAhBJLyuI4llrMIC1DtlNSdI99EI86KZum2MMq3EAZlF9Q==}
 
+  sorted-btree@1.8.1:
+    resolution: {integrity: sha512-395+XIP+wqNn3USkFSrNz7G3Ss/MXlZEqesxvzCRFwL14h6e8LukDHdLBePn5pwbm5OQ9vGu8mDyz2lLDIqamQ==}
+
   source-map-js@1.2.1:
     resolution: {integrity: sha512-UXWMKhLOwVKb728IUtQPXxfYU+usdybtUrK/8uGE8CQMvrhOpwvzDBwj0QhSL7MQc7vIsISBG8VQ8+IDQxpfQA==}
     engines: {node: '>=0.10.0'}
@@ -5788,6 +6026,11 @@ packages:
     peerDependencies:
       react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
 
+  use-sync-external-store@1.6.0:
+    resolution: {integrity: sha512-Pp6GSwGP/NrPIrxVFAIkOQeyw8lFenOHijQWkUTrDvrF4ALqylP2C/KCkeS9dpUM3KvYRQhna5vt7IL95+ZQ9w==}
+    peerDependencies:
+      react: ^16.8.0 || ^17.0.0 || ^18.0.0 || ^19.0.0
+
   utf8-byte-length@1.0.5:
     resolution: {integrity: sha512-Xn0w3MtiQ6zoz2vFyUVruaCL53O/DwUvkEeOvj+uulMm0BkUGYWmBYVyElqZaSLhY6ZD0ulfU3aBra2aVT4xfA==}
 
@@ -5977,6 +6220,10 @@ packages:
 
   yallist@3.1.1:
     resolution: {integrity: sha512-a4UGQaWPH59mOXUYnAG2ewncQS4i4F43Tv3JoAM+s2VDAmS9NsK8GpDMLrCHPksFT7h3K6TOoUNn2pb7RoXx4g==}
+
+  yjs@13.6.31:
+    resolution: {integrity: sha512-Eq+5BRfbeGyqGVrTJL3bEcr8gKkxPuyuoHmAwpk52fDb8kOVMrfVSTRPd6yiGgX5Fskb96qCRjzjbRjrL4YEnw==}
+    engines: {node: '>=16.0.0', npm: '>=8.0.0'}
 
   yoctocolors@2.1.2:
     resolution: {integrity: sha512-CzhO+pFNo8ajLM2d2IW/R93ipy99LWjtwblvC1RsoSUMZgyLbYFr221TnSNT7GjGdYui6P459mw9JH/g/zW2ug==}
@@ -8271,6 +8518,19 @@ snapshots:
     dependencies:
       '@super-line/core': 0.11.0
 
+  '@super-line/collections-crdt-memory@0.1.0':
+    dependencies:
+      '@super-line/core': 0.11.0
+      '@super-store/store': 0.3.1
+
+  '@super-line/collections-crdt-pglite@0.1.0':
+    dependencies:
+      '@electric-sql/pglite': 0.5.4
+      '@electric-sql/pglite-sync': 0.6.5(@electric-sql/pglite@0.5.4)
+      '@super-line/core': 0.11.0
+      '@super-store/store': 0.3.1
+      postgres: 3.4.9
+
   '@super-line/collections-memory@0.1.0':
     dependencies:
       '@super-line/core': 0.11.0
@@ -8337,6 +8597,12 @@ snapshots:
       - zod
       - zod-to-json-schema
 
+  '@super-line/tanstack-db@0.1.1(@tanstack/db@0.5.33(typescript@5.8.3))':
+    dependencies:
+      '@super-line/client': 0.9.0
+      '@super-line/core': 0.11.0
+      '@tanstack/db': 0.5.33(typescript@5.8.3)
+
   '@super-line/transport-websocket@0.6.0':
     dependencies:
       '@super-line/core': 0.11.0
@@ -8344,6 +8610,10 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+
+  '@super-store/store@0.3.1':
+    dependencies:
+      yjs: 13.6.31
 
   '@tailwindcss/node@4.3.2':
     dependencies:
@@ -8412,6 +8682,29 @@ snapshots:
       '@tailwindcss/oxide': 4.3.2
       tailwindcss: 4.3.2
       vite: 7.3.6(@types/node@25.9.4)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5)
+
+  '@tanstack/db-ivm@0.1.17(typescript@5.8.3)':
+    dependencies:
+      fractional-indexing: 3.4.0
+      sorted-btree: 1.8.1
+      typescript: 5.8.3
+
+  '@tanstack/db@0.5.33(typescript@5.8.3)':
+    dependencies:
+      '@standard-schema/spec': 1.1.0
+      '@tanstack/db-ivm': 0.1.17(typescript@5.8.3)
+      '@tanstack/pacer-lite': 0.2.2
+      typescript: 5.8.3
+
+  '@tanstack/pacer-lite@0.2.2': {}
+
+  '@tanstack/react-db@0.1.76(react@19.2.7)(typescript@5.8.3)':
+    dependencies:
+      '@tanstack/db': 0.5.33(typescript@5.8.3)
+      react: 19.2.7
+      use-sync-external-store: 1.6.0(react@19.2.7)
+    transitivePeerDependencies:
+      - typescript
 
   '@tokenizer/token@0.3.0': {}
 
@@ -9488,6 +9781,8 @@ snapshots:
 
   forwarded@0.2.0: {}
 
+  fractional-indexing@3.4.0: {}
+
   framer-motion@12.42.2(react-dom@19.2.7(react@19.2.7))(react@19.2.7):
     dependencies:
       motion-dom: 12.42.2
@@ -9765,6 +10060,8 @@ snapshots:
 
   isexe@2.0.0: {}
 
+  isomorphic.js@0.2.5: {}
+
   it-all@3.0.11: {}
 
   it-batch@3.0.11: {}
@@ -9914,6 +10211,10 @@ snapshots:
   layout-base@1.0.2: {}
 
   layout-base@2.0.1: {}
+
+  lib0@0.2.117:
+    dependencies:
+      isomorphic.js: 0.2.5
 
   libp2p@3.3.4:
     dependencies:
@@ -11278,6 +11579,8 @@ snapshots:
     dependencies:
       atomic-sleep: 1.0.0
 
+  sorted-btree@1.8.1: {}
+
   source-map-js@1.2.1: {}
 
   source-map@0.7.6: {}
@@ -11608,6 +11911,10 @@ snapshots:
     dependencies:
       react: 19.2.7
 
+  use-sync-external-store@1.6.0(react@19.2.7):
+    dependencies:
+      react: 19.2.7
+
   utf8-byte-length@1.0.5: {}
 
   utf8-codec@1.0.0: {}
@@ -11724,6 +12031,10 @@ snapshots:
   xxhash-wasm@1.1.0: {}
 
   yallist@3.1.1: {}
+
+  yjs@13.6.31:
+    dependencies:
+      lib0: 0.2.117
 
   yoctocolors@2.1.2: {}
 

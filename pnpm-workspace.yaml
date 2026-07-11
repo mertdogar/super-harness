@@ -3,6 +3,7 @@ packages:
   - 'examples/*'
   - 'examples/web/*'
   - 'examples/plan-board/*'
+  - 'examples/canvas/*'
   - 'docs'
 allowBuilds:
   better-sqlite3: true
@@ -14,6 +15,10 @@ allowBuilds:
 # makes core a true peerDependency.
 overrides:
   '@super-line/core': ^0.11.0
+  # canvas-client uses @tanstack/react-db (pins db@0.5.32) alongside the
+  # @super-line/tanstack-db adapter (db@0.5.33). Pin one db instance so the
+  # collections they exchange share types (same fix as upstream super-line).
+  '@tanstack/react-db>@tanstack/db': 0.5.33
 # plugin-auth@0.1.0 predates the 0.11 release wave; its client/server peers
 # are stale but its runtime only touches symbols that survive 0.11. Drop once
 # upstream republishes plugin-auth with widened peers.

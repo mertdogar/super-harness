@@ -1,0 +1,112 @@
+name: super-harness-canvas
+
+# 2-node multi-board canvas cluster on the pglite backends. Central Postgres
+# holds Mastra's ground truth (mastra_*), the harness tree + boards lobby
+# (collection_rows), AND the CRDT scene op-log; Electric streams those tables
+# into each node's in-memory PGlite replica, so both nodes converge on the same
+# boards, scenes, and harness threads.
+#
+#   docker compose up --build      (needs AI_GATEWAY_API_KEY in the repo-root .env)
+#
+# Then open http://localhost:5174. Pick the node from the header selectbox
+# (node-1/2). Edit a board on node-1, flip to node-2: the SAME scene re-renders
+# from node-2's replica — that round-trip (node-1 → PG → Electric → node-2) is
+# the cross-node proof. Control Center on :8082 taps node-1's inspector.
+
+# One image (repo + pnpm install) for every node AND the vite frontend.
+x-app: &app
+  build:
+    context: ../..
+    dockerfile: examples/canvas/Dockerfile
+  image: super-harness-canvas:dev
+
+# A super-line node: identical code, differs only by NODE_NAME + host port.
+x-node: &node
+  <<: *app
+  command: pnpm --filter @super-harness/canvas-server exec tsx server.ts
+  env_file: ../../.env # AI_GATEWAY_API_KEY only — gitignored, never baked into the image
+  depends_on:
+    postgres: { condition: service_healthy }
+    electric: { condition: service_started }
+  healthcheck:
+    test: ['CMD', 'node', '-e', "require('net').connect(8801,'127.0.0.1').on('connect',()=>process.exit(0)).on('error',()=>process.exit(1))"]
+    interval: 2s
+    timeout: 3s
+    retries: 30
+
+x-node-env: &node-env
+  SUPER_HARNESS_PORT: '8801' # every node listens on 8801 internally; host port differs
+  SUPER_HARNESS_STORAGE: pglite
+  PG_URL: postgres://postgres:password@postgres:5432/electric
+  ELECTRIC_URL: http://electric:3000/v1/shape
+  CHAT_MODEL: ${CHAT_MODEL:-anthropic/claude-sonnet-4.5}
+
+services:
+  # Central Postgres — source of truth for every plane. wal_level=logical so Electric can replicate.
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: electric
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    command: [-c, listen_addresses=*, -c, wal_level=logical]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres -d electric']
+      interval: 2s
+      timeout: 3s
+      retries: 15
+
+  # Electric — streams the shared tables out as HTTP shapes to each node's local PGlite replica.
+  electric:
+    image: electricsql/electric
+    environment:
+      DATABASE_URL: postgresql://postgres:password@postgres:5432/electric?sslmode=disable
+      ELECTRIC_INSECURE: 'true'
+    depends_on:
+      postgres: { condition: service_healthy }
+
+  # node-1 is the schema leader: it creates the shared tables (and seeds the
+  # default board) during boot. node-2 waits for it to be healthy before
+  # starting, so the two never run CREATE TABLE IF NOT EXISTS concurrently on a
+  # cold DB. Once the tables exist, the follower's DDL just no-ops.
+  node-1:
+    <<: *node
+    environment:
+      <<: *node-env
+      NODE_NAME: node-1
+    ports: ['8811:8801'] # → node-1 in the selectbox
+  node-2:
+    <<: *node
+    depends_on:
+      postgres: { condition: service_healthy }
+      electric: { condition: service_started }
+      node-1: { condition: service_healthy } # schema + seed created before we boot
+    environment:
+      <<: *node-env
+      NODE_NAME: node-2
+    ports: ['8812:8801'] # → node-2 in the selectbox
+
+  # The React SPA (vite dev). VITE_NODE_BASE_PORT turns on the header node
+  # selectbox: node N → ws://<host>:(8810+N)/super-line (8811/8812). The
+  # browser connects straight to a node's host port; the frontend serves no secrets.
+  frontend:
+    <<: *app
+    command: pnpm --filter @super-harness/canvas-client exec vite --host 0.0.0.0 --port 5174
+    environment:
+      VITE_NODE_BASE_PORT: '8810'
+      VITE_NODE_COUNT: '2'
+    ports: ['5174:5174']
+
+  # super-line Control Center — published package, run via npx (no source in this repo).
+  # Serves its SPA on :8082; the browser connects it back to node-1's inspector on the host.
+  control-center:
+    image: node:22-slim
+    command: npx -y @super-line/control-center --url ws://localhost:8811/super-line --port 8082 --no-open
+    ports: ['8082:8082']
+    depends_on:
+      node-1: { condition: service_healthy }
+
+volumes:
+  pgdata:
