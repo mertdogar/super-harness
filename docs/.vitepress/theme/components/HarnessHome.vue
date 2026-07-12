@@ -22,16 +22,6 @@ createSuperLineServer(app, {
   identify: (connection) => connection.ctx.userId,
   plugins: [harness(engine)],
 })`
-
-const replayTree = `thread: product-research · durable
-├─ supervisor                         complete
-│  ├─ todo  3 / 3 complete
-│  └─ delegate → researcher
-│     ├─ reasoning                    complete
-│     ├─ search_web                   complete
-│     └─ answer                       complete
-└─ approval: deploy                   approved
-shared state: document · typed CRDT    synced`
 </script>
 
 <template>
@@ -98,7 +88,16 @@ shared state: document · typed CRDT    synced`
             <span><i /> restored after reconnect</span>
             <b>durable</b>
           </div>
-          <pre><code>{{ replayTree }}</code></pre>
+          <div class="sh-tree" role="group" aria-label="Supervisor, subagents, and human co-writers in one run">
+            <div class="sh-node sh-node--lead"><span class="g">● </span><span class="n">supervisor</span><span class="sh-chip sh-chip--active">orchestrating</span></div>
+            <div class="sh-node"><span class="g">├─</span><span class="n">todo · 3 / 3</span><span class="sh-chip sh-chip--live">complete</span></div>
+            <div class="sh-node"><span class="g">├─</span><span class="n">delegate → <b>researcher</b></span><span class="sh-chip sh-chip--active">streaming</span></div>
+            <div class="sh-node"><span class="g">│  ├─</span><span class="n">reasoning</span><span class="sh-chip sh-chip--live">complete</span></div>
+            <div class="sh-node"><span class="g">│  ├─</span><span class="n">search_web</span><span class="sh-chip sh-chip--live">complete</span></div>
+            <div class="sh-node"><span class="g">│  └─</span><span class="n">answer</span><span class="sh-chip sh-chip--active">streaming</span></div>
+            <div class="sh-node"><span class="g">├─</span><span class="n">collab → <b>scene.doc</b> · typed CRDT</span><span class="sh-chip sh-chip--live">2 co-writers</span></div>
+            <div class="sh-node"><span class="g">└─</span><span class="n">approval: deploy</span><span class="sh-chip sh-chip--live">approved</span></div>
+          </div>
           <p>
             Supervisor and subagent branches persist through super-line collections,
             while humans and agents collaborate on the same typed CRDT state.

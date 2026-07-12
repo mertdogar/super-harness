@@ -307,6 +307,68 @@
   line-height: 1.45;
 }
 
+.sh-tree {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 13px;
+}
+
+.sh-node {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font: 0.75rem/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+.sh-node .g {
+  flex: none;
+  color: var(--sh-code-muted);
+  white-space: pre;
+}
+
+.sh-node .n {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--sh-code-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sh-node .n b {
+  color: var(--sh-focus);
+  font-weight: 600;
+}
+
+.sh-node--lead .g {
+  color: var(--sh-focus);
+}
+
+.sh-node--lead .n {
+  font-weight: 700;
+}
+
+.sh-chip {
+  flex: none;
+  margin-left: auto;
+  padding: 2px 8px;
+  border: 1px solid var(--sh-code-border);
+  border-radius: 5px;
+  color: var(--sh-code-muted);
+  font-size: 0.625rem;
+  white-space: nowrap;
+}
+
+.sh-chip--live {
+  color: var(--sh-stream);
+  border-color: color-mix(in oklab, var(--sh-stream) 34%, transparent);
+}
+
+.sh-chip--active {
+  color: var(--sh-focus);
+  border-color: color-mix(in oklab, var(--sh-focus) 42%, transparent);
+}
+
 .sh-proof {
   display: grid;
   grid-template-columns: minmax(16rem, 0.7fr) minmax(0, 1.3fr);
