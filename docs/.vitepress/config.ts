@@ -1,15 +1,16 @@
 import { defineConfig } from 'vitepress'
 
+const base = '/super-harness/'
+
 export default defineConfig({
   title: 'super-harness',
   description:
     'A transparent, durable multi-agent harness for TypeScript, Mastra, and super-line.',
-  base: '/super-harness/',
+  base,
   cleanUrls: true,
   lastUpdated: true,
-  head: [['link', { rel: 'icon', href: '/mark.svg' }]],
+  head: [['link', { rel: 'icon', href: `${base}mark.svg` }]],
   themeConfig: {
-    logo: '/mark.svg',
     nav: [
       { text: 'Tutorials', link: '/tutorials/', activeMatch: '/tutorials/' },
       { text: 'Guides', link: '/guides/', activeMatch: '/guides/' },
