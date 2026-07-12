@@ -1,95 +1,158 @@
 <script setup lang="ts">
 import { withBase } from 'vitepress'
 
-const contractCode = `// Your app owns the agents, auth, and server.
+const pluginCode = `import { createHarness } from '@super-harness/core'
+import { harness } from '@super-harness/server'
+import { harnessContract } from '@super-harness/shared'
+
 const engine = createHarness({
   supervisor,
   subagents: [{ agent: researcher }],
-  permissions: { tools: { deploy: 'ask' } },
 })
 
-const contract = defineContract({
+const app = defineContract({
   plugins: [harnessContract()],
   roles: { user: {} },
 })
 
-createSuperLineServer(contract, {
-  collections: sqliteCollections({ file: './harness.db' }),
+createSuperLineServer(app, {
+  transports,
+  collections,
+  authenticate,
   identify: (connection) => connection.ctx.userId,
   plugins: [harness(engine)],
 })`
 
-const treeCode = `thread: product-research
-├─ supervisor                         streaming
-│  ├─ todo  2 / 3 complete
+const replayTree = `thread: product-research · replayed
+├─ supervisor                         complete
+│  ├─ todo  3 / 3 complete
 │  └─ delegate → researcher
-│     ├─ reasoning                    streaming
+│     ├─ reasoning                    complete
 │     ├─ search_web                   complete
 │     └─ answer                       complete
-└─ approval: deploy                   waiting for you`
+└─ approval: deploy                   approved`
 </script>
 
 <template>
   <main class="sh-home">
-    <section class="sh-hero">
+    <section class="sh-hero" aria-labelledby="hero-title">
       <div class="sh-hero__copy">
-        <p class="sh-kicker"><span /> Multi-agent systems, made inspectable</p>
-        <h1>Every agent step.<br /><em>One live tree.</em></h1>
-        <p class="sh-lede">
-          A durable harness for Mastra agents. Delegate work, stream every nested
-          tool call, and bring people in at the exact moment they matter.
-        </p>
-        <div class="sh-actions">
-          <a class="VPButton brand" :href="withBase('/tutorials/first-harness')">
-            Get started
-          </a>
-          <a class="VPButton alt" href="https://github.com/mertdogar/super-harness">View on GitHub</a>
-        </div>
         <a
           class="sh-super-line"
           href="https://super-line.dogar.biz"
           target="_blank"
           rel="noreferrer"
         >
-          <span>Built as a plugin for</span>
+          <span>A plugin for</span>
           <picture>
             <source media="(prefers-color-scheme: dark)" :srcset="withBase('/super-line-logo-dark.svg')" />
             <img :src="withBase('/super-line-logo-light.svg')" alt="super-line" />
           </picture>
         </a>
+        <h1 id="hero-title">
+          One plugin.<br />
+          <em>Every agent stream.</em><br />
+          Durable by default.
+        </h1>
+        <p class="sh-lede">
+          Bring your Mastra supervisor and subagents. Super Harness composes into
+          the super-line host you already own and persists every nested stream as
+          one replayable session tree.
+        </p>
+        <div class="sh-actions">
+          <a class="sh-action sh-action--primary" :href="withBase('/tutorials/server-plugin')">
+            Add the plugin
+          </a>
+          <a class="sh-action sh-action--secondary" :href="withBase('/tutorials/first-harness')">
+            Run the Mastra example
+          </a>
+        </div>
+        <p class="sh-hero__assurance">
+          One server, connection, authentication system, and collections backend.
+        </p>
       </div>
-      <section class="sh-tree" aria-label="A live agent session tree">
-        <div class="sh-tree__bar"><i /> LIVE SESSION <b>00:14</b></div>
-        <pre><code>{{ treeCode }}</code></pre>
-        <div class="sh-tree__status"><span /> connected · durable · replayable</div>
+
+      <section class="sh-composition" aria-label="A persisted Super Harness replay in a super-line host">
+        <div class="sh-composition__header">
+          <span>Composed into your host</span>
+          <b>Persisted replay</b>
+        </div>
+        <div class="sh-host">
+          <div>
+            <span>Your existing</span>
+            <strong>super-line host</strong>
+          </div>
+          <ul aria-label="Host resources retained by the application">
+            <li>socket</li>
+            <li>auth</li>
+            <li>storage</li>
+          </ul>
+        </div>
+        <div class="sh-join">
+          <span aria-hidden="true">↓</span>
+          <code>plugins: [harness(engine)]</code>
+        </div>
+        <div class="sh-replay">
+          <div class="sh-replay__header">
+            <span><i /> restored after reconnect</span>
+            <b>durable</b>
+          </div>
+          <pre><code>{{ replayTree }}</code></pre>
+          <p>Supervisor and subagent branches rebuild from the same stream.</p>
+        </div>
       </section>
     </section>
 
-    <section class="sh-proof">
-      <div class="sh-section-heading">
-        <p>One integration point</p>
-        <h2>Your server stays yours.</h2>
-        <span>
-          Super Harness is a
-          <a href="https://super-line.dogar.biz" target="_blank" rel="noreferrer">super-line plugin</a>,
-          not another service to operate.
-        </span>
+    <section class="sh-proof" aria-labelledby="proof-title">
+      <div class="sh-proof__intro">
+        <p class="sh-overline">The integration boundary</p>
+        <h2 id="proof-title">Your host stays yours.</h2>
+        <p>
+          Super Harness joins your
+          <a href="https://super-line.dogar.biz" target="_blank" rel="noreferrer">super-line server</a>
+          as a plugin. It doesn't introduce another service for your team to
+          authenticate, deploy, or reconcile.
+        </p>
+        <code class="sh-install">pnpm add @super-harness/core @super-harness/server @mastra/core</code>
       </div>
-      <div class="sh-code"><div class="sh-code__bar"><span /><span /><span /> server.ts</div><pre><code>{{ contractCode }}</code></pre></div>
+      <div class="sh-code">
+        <div class="sh-code__bar">
+          <span /><span /><span />
+          <b>server.ts</b>
+          <a :href="withBase('/guides/composition')">Read the complete guide →</a>
+        </div>
+        <pre><code>{{ pluginCode }}</code></pre>
+      </div>
     </section>
 
-    <section class="sh-principles">
-      <article><b>01</b><h3>Full-fidelity streaming</h3><p>Reasoning, tool input, results, and every subagent branch arrive as their own first-class events.</p></article>
-      <article><b>02</b><h3>Durable by default</h3><p>Structural state persists as typed collections, so reloads, reconnects, and late joiners see the actual run.</p></article>
-      <article><b>03</b><h3>Human control where it counts</h3><p>Pause for answers, gate sensitive tools, and continue the exact session without rebuilding orchestration.</p></article>
+    <section class="sh-principles" aria-labelledby="principles-title">
+      <div class="sh-principles__intro">
+        <p class="sh-overline">Built for the run, not the transcript</p>
+        <h2 id="principles-title">Keep the structure that made the work happen.</h2>
+      </div>
+      <div class="sh-principles__list">
+        <article>
+          <h3>Preserve hierarchy</h3>
+          <p>Supervisor and subagents remain first-class branches, not generic events.</p>
+        </article>
+        <article>
+          <h3>Persist the stream</h3>
+          <p>Reconnects and late joiners rebuild the same session without replay glue.</p>
+        </article>
+        <article>
+          <h3>Control the right moment</h3>
+          <p>Ask for input or approval inside the durable run, then continue it exactly.</p>
+        </article>
+      </div>
     </section>
 
-    <section class="sh-next">
-      <p>Start with a working harness</p>
-      <h2>From agents to an observable system.</h2>
-      <a :href="withBase('/tutorials/first-harness')">
-        Build your first harness <span>→</span>
-      </a>
+    <section class="sh-next" aria-labelledby="next-title">
+      <p class="sh-overline">A working run is the proof</p>
+      <h2 id="next-title">Start with the host you already have.</h2>
+      <div class="sh-next__actions">
+        <a :href="withBase('/tutorials/server-plugin')">Add the plugin <span>→</span></a>
+        <a :href="withBase('/tutorials/first-harness')">Run the Mastra example <span>→</span></a>
+      </div>
     </section>
   </main>
 </template>

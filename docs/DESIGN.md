@@ -17,10 +17,10 @@ colors:
 typography:
   display:
     fontFamily: "system-ui, sans-serif"
-    fontSize: "clamp(3rem, 6vw, 5rem)"
+    fontSize: "clamp(2.8rem, 5.25vw, 4.65rem)"
     fontWeight: 700
     lineHeight: 0.99
-    letterSpacing: "-0.04em"
+    letterSpacing: "-0.035em"
   body:
     fontFamily: "system-ui, sans-serif"
     fontSize: "1rem"
@@ -146,8 +146,8 @@ code, stream nodes, timestamps, and status labels.
 
 ### Hierarchy
 
-- **Display** (700, `clamp(3rem, 6vw, 5rem)`, `0.99`): hero statement only.
-  Keep tracking no tighter than `-0.04em` in new work.
+- **Display** (700, `clamp(2.8rem, 5.25vw, 4.65rem)`, `0.99`): hero statement
+  only. Keep tracking no tighter than `-0.04em` in new work.
 - **Headline** (700, `clamp(2rem, 3.4vw, 3.0625rem)`, `1.04`): major section
   statements and the end-of-page conversion moment.
 - **Title** (700, `1.3125rem`, normal): individual principle headings.
@@ -165,20 +165,14 @@ system mechanism. Mono is not a decorative synonym for developer credibility.
 
 ## Elevation
 
-The system is flat by default. Borders establish the frame of a code artifact
-or live stream. A broad shadow appears only beneath the hero's inspectable
-proof panels, where it separates the running system from the explanatory page.
-
-### Shadow Vocabulary
-
-- **Execution Artifact** (`0 22px 55px rgba(5, 21, 37, 0.18)`): hero stream
-  tree and code proof only. Pair it with the existing dark artifact surface,
-  not with generic documentation cards.
+The system is flat by default. Borders establish the frame of a code artifact,
+composition boundary, or persisted replay. The homepage uses no drop shadows:
+dark artifact surfaces and their precise borders carry the depth.
 
 ### Named Rules
 
-**The Artifact Elevation Rule.** If a surface is not code, a trace, or a live
-execution artifact, use spacing and tonal contrast before reaching for shadow.
+**The Artifact Elevation Rule.** Depth comes from tonal contrast and precise
+borders, never decorative shadows.
 
 ## Components
 
