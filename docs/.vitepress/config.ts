@@ -9,6 +9,7 @@ export default defineConfig({
   base,
   cleanUrls: true,
   lastUpdated: true,
+  srcExclude: ['PRODUCT.md', 'DESIGN.md'],
   head: [['link', { rel: 'icon', href: `${base}mark.svg` }]],
   themeConfig: {
     nav: [

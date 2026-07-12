@@ -4,8 +4,9 @@ title: Add the server plugin
 
 # Add the server plugin
 
-Merge the contract fragment and runtime plugin into your existing super-line
-server. Your app keeps ownership of authentication, transports, and storage.
+Merge the contract fragment and runtime plugin into your existing
+[super-line](https://super-line.dogar.biz) server. Your app keeps ownership of
+authentication, transports, and storage.
 
 ```ts
 const contract = defineContract({

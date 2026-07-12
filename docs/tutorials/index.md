@@ -6,7 +6,7 @@ title: Tutorials
 
 These tutorials take you from a local harness to an integrated, live client.
 Start with the first harness, then add Super Harness to your existing
-super-line host.
+[super-line](https://super-line.dogar.biz) host.
 
 - [Your first harness](./first-harness)
 - [Add the server plugin](./server-plugin)

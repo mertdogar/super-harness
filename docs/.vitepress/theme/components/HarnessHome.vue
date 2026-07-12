@@ -45,6 +45,18 @@ const treeCode = `thread: product-research
           </a>
           <a class="VPButton alt" href="https://github.com/mertdogar/super-harness">View on GitHub</a>
         </div>
+        <a
+          class="sh-super-line"
+          href="https://super-line.dogar.biz"
+          target="_blank"
+          rel="noreferrer"
+        >
+          <span>Built as a plugin for</span>
+          <picture>
+            <source media="(prefers-color-scheme: dark)" :srcset="withBase('/super-line-logo-dark.svg')" />
+            <img :src="withBase('/super-line-logo-light.svg')" alt="super-line" />
+          </picture>
+        </a>
       </div>
       <section class="sh-tree" aria-label="A live agent session tree">
         <div class="sh-tree__bar"><i /> LIVE SESSION <b>00:14</b></div>
@@ -57,7 +69,11 @@ const treeCode = `thread: product-research
       <div class="sh-section-heading">
         <p>One integration point</p>
         <h2>Your server stays yours.</h2>
-        <span>Super Harness is a super-line plugin, not another service to operate.</span>
+        <span>
+          Super Harness is a
+          <a href="https://super-line.dogar.biz" target="_blank" rel="noreferrer">super-line plugin</a>,
+          not another service to operate.
+        </span>
       </div>
       <div class="sh-code"><div class="sh-code__bar"><span /><span /><span /> server.ts</div><pre><code>{{ contractCode }}</code></pre></div>
     </section>
