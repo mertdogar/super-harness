@@ -23,14 +23,15 @@ createSuperLineServer(app, {
   plugins: [harness(engine)],
 })`
 
-const replayTree = `thread: product-research · replayed
+const replayTree = `thread: product-research · durable
 ├─ supervisor                         complete
 │  ├─ todo  3 / 3 complete
 │  └─ delegate → researcher
 │     ├─ reasoning                    complete
 │     ├─ search_web                   complete
 │     └─ answer                       complete
-└─ approval: deploy                   approved`
+└─ approval: deploy                   approved
+shared state: document · typed CRDT    synced`
 </script>
 
 <template>
@@ -74,8 +75,8 @@ const replayTree = `thread: product-research · replayed
 
       <section class="sh-composition" aria-label="A persisted Super Harness replay in a super-line host">
         <div class="sh-composition__header">
-          <span>Composed into your host</span>
-          <b>Persisted replay</b>
+          <span>Agent teams, in one stream</span>
+          <b>Durable collaboration</b>
         </div>
         <div class="sh-host">
           <div>
@@ -98,7 +99,10 @@ const replayTree = `thread: product-research · replayed
             <b>durable</b>
           </div>
           <pre><code>{{ replayTree }}</code></pre>
-          <p>Supervisor and subagent branches rebuild from the same stream.</p>
+          <p>
+            Supervisor and subagent branches persist through super-line collections,
+            while humans and agents collaborate on the same typed CRDT state.
+          </p>
         </div>
       </section>
     </section>
