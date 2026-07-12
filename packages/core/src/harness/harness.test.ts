@@ -936,6 +936,36 @@ describe('harness: title generation', () => {
     expect(calls).toBe(0)
   })
 
+  it('materializes an unknown thread on its first send and dispatches thread_created with the resolved resourceId', async () => {
+    const threads = store()
+    const harness = engine(registry(), { threads, resourceFor: () => 'res-9' })
+    const events: HarnessBusEvent[] = []
+    harness.subscribe((_tid, e) => events.push(e))
+
+    await harness.sendMessage({ threadId: 't1', content: 'hello' })
+    await harness.sendMessage({ threadId: 't1', content: 'again' })
+
+    expect(events.filter((e) => e.type === 'thread_created')).toHaveLength(1)
+    expect(events.find((e) => e.type === 'thread_created')).toMatchObject({ threadId: 't1', resourceId: 'res-9' })
+    expect((await threads.getThreadById({ threadId: 't1' }))?.resourceId).toBe('res-9')
+  })
+
+  it('generates a title for an implicitly materialized thread (first send, no explicit create)', async () => {
+    const threads = store()
+    const harness = engine(registry(), {
+      threads,
+      generateTitle: async (input) => `Title for: ${input}`,
+    })
+    const events: HarnessBusEvent[] = []
+    harness.subscribe((_tid, e) => events.push(e))
+
+    await harness.sendMessage({ threadId: 't1', content: 'hi' })
+    await new Promise((r) => setTimeout(r, 20))
+
+    expect(events.find((e) => e.type === 'thread_renamed')).toMatchObject({ threadId: 't1', title: 'Title for: hi' })
+    expect((await threads.getThreadById({ threadId: 't1' }))?.title).toBe('Title for: hi')
+  })
+
   it('swallows a title-generation failure without crashing the turn', async () => {
     const threads = store()
     await threads.createThread({ threadId: 't1', resourceId: 't1' })

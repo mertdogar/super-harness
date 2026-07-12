@@ -331,6 +331,14 @@ export class Harness {
       const entry = this.#entry(this.cfg.supervisorType)
       const runtime = this.#makeRuntime(threadId, node)
       const resource = this.#resource(threadId)
+      // A fresh thread's first send materializes it in the store. Mastra would
+      // lazily auto-create it on message save, but silently — no thread_created
+      // on the bus, so durable sinks never learn resourceId/createdAt. Resumes
+      // skip this (input === ''): a parked suspension implies the thread exists.
+      if (input && this.cfg.threads) {
+        const existing = await this.threads.get(threadId)
+        if (!existing) await this.threads.create({ threadId, resourceId: resource })
+      }
       let mode: HarnessMode | undefined
       try {
         mode = await this.#currentMode(threadId)
