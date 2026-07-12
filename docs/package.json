@@ -6,9 +6,11 @@
   "scripts": {
     "dev": "vitepress dev",
     "build": "vitepress build",
+    "check-links": "linkinator http://127.0.0.1:4173/super-harness/ --recurse --clean-urls --concurrency 1 --verbosity error --retry-errors --retry-errors-count 3 --skip '^https?://(?!localhost|127\\.0\\.0\\.1)'",
     "preview": "vitepress preview"
   },
   "devDependencies": {
+    "linkinator": "^7.6.1",
     "vitepress": "^1.6.3"
   }
 }

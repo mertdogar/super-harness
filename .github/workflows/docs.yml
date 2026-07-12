@@ -1,0 +1,57 @@
+name: Deploy docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'packages/**'
+      - 'package.json'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+# Allow the GITHUB_TOKEN to deploy to Pages.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Run one deploy at a time without cancelling an active deploy.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build docs
+        run: pnpm docs:build
+      - name: Check links in built docs
+        run: |
+          pnpm --filter @super-harness/docs preview &
+          timeout 30 bash -c 'until curl --fail --silent http://127.0.0.1:4173/super-harness/; do sleep 1; done'
+          pnpm --filter @super-harness/docs check-links
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/.vitepress/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
