@@ -49,7 +49,7 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@super-line/core": "^0.11.0"
+    "@super-line/core": "^0.11.1"
   },
   "devDependencies": {
     "@super-line/core": "^0.11.1",
