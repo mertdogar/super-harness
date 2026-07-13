@@ -4,6 +4,7 @@
 // type via the AgentRunner seam, so both a real `agent.stream` and a fake
 // (self-check) drive it identically.
 
+import type { TracingContext } from '@mastra/core/observability'
 import type { FileAttachment, HarnessEvent, TokenUsage } from '@super-harness/shared'
 import { createChunkAdapter, type ChunkLike, type Suspension } from './chunk-adapter'
 
@@ -32,6 +33,11 @@ export interface RunOptions {
   // Mastra runner copies its entries into the node's RequestContext beneath the
   // harness runtime key. Same value for every node of the turn.
   requestContext?: unknown
+  // The parent delegate tool-call's tracing context (its currentSpan is the
+  // delegate TOOL_CALL span). When set, runnerFactory derives Mastra
+  // tracingOptions {traceId, parentSpanId} from it so the child's AGENT_RUN
+  // span nests under the parent turn's trace instead of starting a new root.
+  tracingContext?: TracingContext
   // Attachments folded into the user message (root turns only): image/* as
   // image parts, other mimeTypes as file parts.
   files?: FileAttachment[]

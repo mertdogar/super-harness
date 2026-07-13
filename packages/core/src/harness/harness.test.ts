@@ -8,6 +8,7 @@ import type { HarnessEvent } from '@super-harness/shared'
 import type { HarnessBusEvent } from './harness'
 import type { HarnessRuntime } from './runtime'
 import type { AgentRunner, NodeEnvelope, RunOptions } from './run-node'
+import type { TracingContext } from '@mastra/core/observability'
 
 describe('chunk-adapter', () => {
   it('maps chunks to events and suppresses delegate tool chunks', () => {
@@ -170,6 +171,57 @@ describe('harness: delegation + tree', () => {
     const tree = harness.getTree('t1')!
     expect(tree.nodes['tc-1']).toBeUndefined()
     expect(tree.nodes[tree.turns[0]].text).toContain("may not delegate to 'worker'")
+  })
+})
+
+describe('harness: tracing propagation', () => {
+  // A supervisor runner that delegates once, optionally forwarding a tracing
+  // context — mirrors the delegate tool passing ctx.tracing to runtime.delegate.
+  const delegatingRunner =
+    (tracing?: TracingContext) =>
+    (_node: NodeEnvelope, rt: HarnessRuntime): AgentRunner =>
+    async () => ({
+      fullStream: (async function* () {
+        yield { type: 'text-delta', payload: { text: 'go ' } }
+        await rt.delegate('worker', 'do it', 'tc-1', tracing)
+        yield { type: 'finish', payload: { output: { usage: { totalTokens: 1 } } } }
+      })(),
+    })
+
+  // A child runner that records the RunOptions it was handed.
+  const recordingRunner =
+    (sink: { opts?: RunOptions }) =>
+    (_node: NodeEnvelope, _rt: HarnessRuntime): AgentRunner =>
+    async (opts: RunOptions) => {
+      sink.opts = opts
+      return {
+        fullStream: (async function* () {
+          yield { type: 'text-delta', payload: { text: 'child' } }
+        })(),
+      }
+    }
+
+  const childRunOpts = async (tracing?: TracingContext): Promise<RunOptions | undefined> => {
+    const sink: { opts?: RunOptions } = {}
+    const registry = new Map<string, SubagentEntry>()
+    registry.set('supervisor', { agentType: 'supervisor', delegatesTo: ['worker'], makeRunner: delegatingRunner(tracing) })
+    registry.set('worker', { agentType: 'worker', makeRunner: recordingRunner(sink) })
+    await new Harness({ supervisorType: 'supervisor', registry, maxDepth: 3 }).sendMessage({ threadId: 't1', content: 'hi' })
+    return sink.opts
+  }
+
+  it('threads the delegate tool-call tracing context onto the child run', async () => {
+    // Only .id/.traceId are read downstream; a minimal span stands in for AnySpan.
+    const tracing = { currentSpan: { id: 's1', traceId: 't1' } } as unknown as TracingContext
+    const opts = await childRunOpts(tracing)
+    expect(opts?.tracingContext?.currentSpan).toBe(tracing.currentSpan)
+    expect(opts?.tracingContext?.currentSpan?.id).toBe('s1')
+    expect(opts?.tracingContext?.currentSpan?.traceId).toBe('t1')
+  })
+
+  it('leaves the child tracingContext undefined for an untraced turn (no behavior change)', async () => {
+    const opts = await childRunOpts(undefined)
+    expect(opts?.tracingContext).toBeUndefined()
   })
 })
 

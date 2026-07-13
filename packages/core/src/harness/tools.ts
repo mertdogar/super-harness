@@ -26,8 +26,11 @@ export function makeDelegateTool(agentTypes: string[]) {
     }),
     outputSchema: z.object({ content: z.string(), isError: z.boolean() }),
     execute: async ({ agentType, task }, ctx) => {
-      const toolCallId = ctx?.agent?.toolCallId ?? `${agentType}:${task.length}`
-      return runtimeOf(ctx as ToolExecutionContext).delegate(agentType, task, toolCallId)
+      const c = ctx as ToolExecutionContext
+      const toolCallId = c?.agent?.toolCallId ?? `${agentType}:${task.length}`
+      // c.tracing.currentSpan is the delegate TOOL_CALL span — forward it so the
+      // child AGENT_RUN nests under it in the same trace (Mastra ≥1.50).
+      return runtimeOf(c).delegate(agentType, task, toolCallId, c.tracing)
     },
   })
 }

@@ -13,6 +13,7 @@ import { Agent } from '@mastra/core/agent'
 import { RequestContext } from '@mastra/core/request-context'
 import type { ToolsInput } from '@mastra/core/agent'
 import type { MastraModelConfig } from '@mastra/core/llm'
+import type { TracingContext, TracingOptions } from '@mastra/core/observability'
 import { nanoid } from 'nanoid'
 import type { FileAttachment, HarnessEvent, HarnessTree, TokenUsage } from '@super-harness/shared'
 import type { Suspension } from './chunk-adapter'
@@ -465,7 +466,8 @@ export class Harness {
     return {
       node,
       emit: (e) => this.#emitNode(threadId, e),
-      delegate: (agentType, task, toolCallId) => this.#spawnChild(threadId, agentType, task, toolCallId, node),
+      delegate: (agentType, task, toolCallId, tracingContext) =>
+        this.#spawnChild(threadId, agentType, task, toolCallId, node, tracingContext),
     }
   }
 
@@ -475,6 +477,7 @@ export class Harness {
     task: string,
     toolCallId: string,
     parent: NodeEnvelope,
+    tracingContext?: TracingContext,
   ): Promise<{ content: string; isError: boolean }> {
     // Subagent nodes run headless: no approval gating, no mode overlay — same
     // policy as AgentController (children get constrained tools, not gates).
@@ -499,6 +502,7 @@ export class Harness {
         maxSteps: entry.maxSteps,
         abortSignal: this.#threads.get(threadId)?.abort?.signal,
         requestContext: this.#threads.get(threadId)?.turnContext,
+        tracingContext, // ← nest the child under the delegate tool-call span
       },
       emit: (e) => this.#emitNode(threadId, e),
       suppressToolNames: SUPPRESS,
@@ -823,6 +827,14 @@ export function createHarness(config: HarnessConfig): Harness {
           maxSteps: opts.maxSteps,
           abortSignal: opts.abortSignal,
           requestContext: rc,
+        }
+        // Nest the child AGENT_RUN under the delegate tool-call span: derive
+        // {traceId, parentSpanId} from the parent span so Mastra parents this
+        // run's root span into that trace instead of opening a new root.
+        const parentSpan = opts.tracingContext?.currentSpan
+        if (parentSpan) {
+          const tracingOptions: TracingOptions = { traceId: parentSpan.traceId, parentSpanId: parentSpan.id }
+          streamOpts.tracingOptions = tracingOptions
         }
         if (opts.modeInstructions) streamOpts.instructions = await layerInstructions(agent, opts.modeInstructions)
         // A mode allowlist must never hide the harness built-ins.
