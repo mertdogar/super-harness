@@ -1,7 +1,7 @@
 {
   "name": "@super-harness/react",
   "version": "0.1.0",
-  "description": "Headless React client for Super Harness: a framework-free HarnessClient (join, live tree via subscribeTree, ask_user/approval state machine, threads, modes) plus provider + hooks bindings. No components, no styling \u2014 bring your own UI.",
+  "description": "Headless React client for Super Harness: a framework-free HarnessClient (join, live tree via subscribeTree, ask_user/approval state machine, threads, modes) plus provider + hooks bindings. No components, no styling — bring your own UI.",
   "keywords": [
     "agent",
     "agents",
@@ -81,9 +81,9 @@
   "devDependencies": {
     "@super-line/client": "^0.9.0",
     "@super-line/transport-websocket": "^0.6.0",
-    "@types/react": "^19.2.0",
-    "react": "^19.2.0",
-    "vitest": "^4.1.2"
+    "@types/react": "^19.2.17",
+    "react": "^19.2.7",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=18"

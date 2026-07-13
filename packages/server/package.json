@@ -82,15 +82,15 @@
   "devDependencies": {
     "@electric-sql/pglite": "^0.5.4",
     "@libsql/client": "^0.17.4",
-    "@mastra/core": "1.49.0-alpha.2",
+    "@mastra/core": "^1.50.1",
     "@super-line/client": "^0.9.0",
     "@super-line/collections-memory": "^0.1.0",
-    "@super-line/collections-pglite": "^0.1.0",
+    "@super-line/collections-pglite": "^0.1.1",
     "@super-line/collections-sqlite": "^0.1.0",
-    "@super-line/core": "^0.11.0",
-    "@super-line/server": "^0.11.0",
+    "@super-line/core": "^0.11.1",
+    "@super-line/server": "^0.11.1",
     "@super-line/transport-websocket": "^0.6.0",
-    "vitest": "^4.1.2",
+    "vitest": "^4.1.10",
     "zod": "^4.4.3"
   },
   "engines": {

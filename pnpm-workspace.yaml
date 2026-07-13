@@ -14,7 +14,7 @@ allowBuilds:
 # (contract identity / SuperLineError instanceof skew). Drop once upstream
 # makes core a true peerDependency.
 overrides:
-  '@super-line/core': ^0.11.0
+  '@super-line/core': ^0.11.1
   # canvas-client uses @tanstack/react-db (pins db@0.5.32) alongside the
   # @super-line/tanstack-db adapter (db@0.5.33). Pin one db instance so the
   # collections they exchange share types (same fix as upstream super-line).

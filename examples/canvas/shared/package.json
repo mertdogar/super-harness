@@ -7,7 +7,7 @@
   "main": "./contract.ts",
   "dependencies": {
     "@super-harness/shared": "workspace:*",
-    "@super-line/core": "^0.11.0",
+    "@super-line/core": "^0.11.1",
     "zod": "^4.4.3"
   }
 }

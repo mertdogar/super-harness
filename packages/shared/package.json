@@ -1,7 +1,7 @@
 {
   "name": "@super-harness/shared",
   "version": "0.1.0",
-  "description": "Isomorphic wire layer for Super Harness: super-line contract, the harness tree types, and the client-side Store view (subscribeTree + diffTree). No Mastra, no server deps \u2014 safe in the browser, Bun, and Node.",
+  "description": "Isomorphic wire layer for Super Harness: super-line contract, the harness tree types, and the client-side Store view (subscribeTree + diffTree). No Mastra, no server deps — safe in the browser, Bun, and Node.",
   "homepage": "https://mertdogar.github.io/super-harness/",
   "bugs": "https://github.com/mertdogar/super-harness/issues",
   "license": "MIT",
@@ -52,8 +52,8 @@
     "@super-line/core": "^0.11.0"
   },
   "devDependencies": {
-    "@super-line/core": "^0.11.0",
-    "vitest": "^4.1.2"
+    "@super-line/core": "^0.11.1",
+    "vitest": "^4.1.10"
   },
   "engines": {
     "node": ">=18"

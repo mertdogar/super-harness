@@ -8,10 +8,10 @@
     "start": "bun --env-file=../../.env server.ts"
   },
   "dependencies": {
-    "@ai-sdk/gateway": "^4.0.3",
-    "@mastra/core": "1.49.0-alpha.2",
-    "@mastra/libsql": "^1.14.3",
-    "@mastra/memory": "^1.22.0",
+    "@ai-sdk/gateway": "^4.0.16",
+    "@mastra/core": "1.50.1",
+    "@mastra/libsql": "^1.15.1",
+    "@mastra/memory": "^1.22.2",
     "@super-harness/core": "workspace:*",
     "@super-harness/server": "workspace:*",
     "@super-line/transport-websocket": "^0.6.0",

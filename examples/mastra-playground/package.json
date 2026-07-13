@@ -6,11 +6,11 @@
   "type": "module",
   "main": "./src/index.ts",
   "dependencies": {
-    "@ai-sdk/gateway": "^4.0.3",
-    "@mastra/core": "1.49.0-alpha.2",
-    "@mastra/libsql": "^1.14.3",
+    "@ai-sdk/gateway": "^4.0.16",
+    "@mastra/core": "1.50.1",
+    "@mastra/libsql": "^1.15.1",
     "@mastra/loggers": "^1.2.0",
-    "@mastra/memory": "^1.22.0",
+    "@mastra/memory": "^1.22.2",
     "zod": "^4.4.3"
   }
 }

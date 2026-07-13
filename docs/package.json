@@ -11,6 +11,6 @@
   },
   "devDependencies": {
     "linkinator": "^7.6.1",
-    "vitepress": "^1.6.3"
+    "vitepress": "^1.6.4"
   }
 }
