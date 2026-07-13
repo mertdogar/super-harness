@@ -15,7 +15,7 @@
     "@super-harness/shared": "workspace:*",
     "@super-line/client": "^0.9.0",
     "@super-line/collections-crdt-memory": "^0.1.0",
-    "@super-line/core": "^0.11.1",
+    "@super-line/core": "^0.11.2",
     "@super-line/tanstack-db": "^0.1.1",
     "@super-line/transport-websocket": "^0.6.0",
     "@tanstack/db": "0.5.33",

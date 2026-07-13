@@ -16,9 +16,9 @@
     "@mastra/memory": "^1.22.2",
     "@super-harness/core": "workspace:*",
     "@super-harness/server": "workspace:*",
-    "@super-line/collections-memory": "^0.1.0",
-    "@super-line/core": "^0.11.1",
-    "@super-line/server": "^0.11.1",
+    "@super-line/collections-memory": "^0.1.1",
+    "@super-line/core": "^0.11.2",
+    "@super-line/server": "^0.11.2",
     "@super-line/transport-websocket": "^0.6.0",
     "tsx": "^4.23.1",
     "zod": "^4.4.3"

@@ -204,7 +204,7 @@ settings:
   excludeLinksFromLockfile: false
 
 overrides:
-  '@super-line/core': ^0.11.1
+  '@super-line/core': ^0.11.2
   '@tanstack/react-db>@tanstack/db': 0.5.33
 
 importers:
@@ -263,17 +263,17 @@ importers:
         specifier: ^0.9.0
         version: 0.9.0
       '@super-line/collections-memory':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       '@super-line/core':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.11.2
+        version: 0.11.2
       '@super-line/plugin-auth':
         specifier: ^0.1.0
-        version: 0.1.0(@super-line/client@0.9.0)(@super-line/server@0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(react@19.2.7)
+        version: 0.1.0(@super-line/client@0.9.0)(@super-line/server@0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(react@19.2.7)
       '@super-line/server':
-        specifier: ^0.11.1
-        version: 0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        specifier: ^0.11.2
+        version: 0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -299,8 +299,8 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@super-line/core':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.11.2
+        version: 0.11.2
       '@super-line/tanstack-db':
         specifier: ^0.1.1
         version: 0.1.1(@tanstack/db@0.5.33(typescript@5.9.3))
@@ -420,20 +420,20 @@ importers:
         specifier: ^0.1.0
         version: 0.1.0
       '@super-line/collections-memory':
-        specifier: ^0.1.0
-        version: 0.1.0
-      '@super-line/collections-pglite':
         specifier: ^0.1.1
         version: 0.1.1
+      '@super-line/collections-pglite':
+        specifier: ^0.1.2
+        version: 0.1.2
       '@super-line/core':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.11.2
+        version: 0.11.2
       '@super-line/plugin-inspector':
-        specifier: ^0.2.1
-        version: 0.2.1(@standard-schema/spec@1.1.0)(@super-line/server@0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        specifier: ^0.2.2
+        version: 0.2.2(@standard-schema/spec@1.1.0)(@super-line/server@0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/server':
-        specifier: ^0.11.1
-        version: 0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        specifier: ^0.11.2
+        version: 0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -460,8 +460,8 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/shared
       '@super-line/core':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.11.2
+        version: 0.11.2
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -490,14 +490,14 @@ importers:
         specifier: ^0.9.0
         version: 0.9.0
       '@super-line/collections-memory':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       '@super-line/core':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.11.2
+        version: 0.11.2
       '@super-line/server':
-        specifier: ^0.11.1
-        version: 0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        specifier: ^0.11.2
+        version: 0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -660,14 +660,14 @@ importers:
         specifier: workspace:*
         version: link:../../../packages/server
       '@super-line/collections-memory':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       '@super-line/core':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.11.2
+        version: 0.11.2
       '@super-line/server':
-        specifier: ^0.11.1
-        version: 0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        specifier: ^0.11.2
+        version: 0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -709,14 +709,14 @@ importers:
         specifier: ^0.9.0
         version: 0.9.0
       '@super-line/collections-memory':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       '@super-line/core':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.11.2
+        version: 0.11.2
       '@super-line/server':
-        specifier: ^0.11.1
-        version: 0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        specifier: ^0.11.2
+        version: 0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -839,20 +839,20 @@ importers:
         specifier: ^0.6.0
         version: 0.6.0
       '@super-line/collections-pglite':
+        specifier: ^0.1.2
+        version: 0.1.2
+      '@super-line/collections-sqlite':
         specifier: ^0.1.1
         version: 0.1.1
-      '@super-line/collections-sqlite':
-        specifier: ^0.1.0
-        version: 0.1.0
       '@super-line/core':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.11.2
+        version: 0.11.2
       '@super-line/plugin-inspector':
-        specifier: ^0.2.1
-        version: 0.2.1(@standard-schema/spec@1.1.0)(@super-line/server@0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        specifier: ^0.2.2
+        version: 0.2.2(@standard-schema/spec@1.1.0)(@super-line/server@0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/server':
-        specifier: ^0.11.1
-        version: 0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        specifier: ^0.11.2
+        version: 0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -939,20 +939,20 @@ importers:
         specifier: ^0.9.0
         version: 0.9.0
       '@super-line/collections-memory':
-        specifier: ^0.1.0
-        version: 0.1.0
-      '@super-line/collections-pglite':
         specifier: ^0.1.1
         version: 0.1.1
+      '@super-line/collections-pglite':
+        specifier: ^0.1.2
+        version: 0.1.2
       '@super-line/collections-sqlite':
-        specifier: ^0.1.0
-        version: 0.1.0
+        specifier: ^0.1.1
+        version: 0.1.1
       '@super-line/core':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.11.2
+        version: 0.11.2
       '@super-line/server':
-        specifier: ^0.11.1
-        version: 0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+        specifier: ^0.11.2
+        version: 0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -970,8 +970,8 @@ importers:
         version: 4.4.3
     devDependencies:
       '@super-line/core':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.11.2
+        version: 0.11.2
       vitest:
         specifier: ^4.1.10
         version: 4.1.10(@opentelemetry/api@1.9.1)(@types/node@26.1.1)(vite@8.1.4(@types/node@26.1.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.23.1))
@@ -991,8 +991,8 @@ importers:
         specifier: ^0.9.0
         version: 0.9.0
       '@super-line/core':
-        specifier: ^0.11.1
-        version: 0.11.1
+        specifier: ^0.11.2
+        version: 0.11.2
       '@super-line/transport-websocket':
         specifier: ^0.6.0
         version: 0.6.0
@@ -3382,20 +3382,20 @@ packages:
     resolution: {integrity: sha512-nIvQoKJNWaVzm96KBroLH9q9g+fcMfE/CCKXl+zsTsBQQduLo19BLcyJAuJuBkXB9xXvxWZoMCk6WqERxe3TBA==}
     engines: {node: '>=18'}
 
-  '@super-line/collections-memory@0.1.0':
-    resolution: {integrity: sha512-Jo1mzFJOuWTHzYw1FEcNQ1LKANg52vsxoCndz6sfJ0FuTQnMlkbQNkOmoden2myZRhdlb8YjxOc/q4KNJsI76g==}
+  '@super-line/collections-memory@0.1.1':
+    resolution: {integrity: sha512-27+C3TTtH/XImAyvyUO0NXm4dBx1jXai667BLCuwlOpPucKOsu5eOvqdA4AfMPjuRUayUWGlxITOwi8a7wXPpw==}
     engines: {node: '>=18'}
 
-  '@super-line/collections-pglite@0.1.1':
-    resolution: {integrity: sha512-/Y+EXb/zNyuQih05geAjAWTeysP+mAO2265ZolkalfpN9O5Gqkwy+PWzNT2/iQz/7c3BA9nhXPXu/8XLZbTjCw==}
+  '@super-line/collections-pglite@0.1.2':
+    resolution: {integrity: sha512-1DJ02rWO4/7T0UUICjkvwccoFWvqDMpjUOvwF/tXj/IEJW34YOkyG1UOjIWRRe+6NM5zjKjdFuPOlRXjrRoVLA==}
     engines: {node: '>=18'}
 
-  '@super-line/collections-sqlite@0.1.0':
-    resolution: {integrity: sha512-C09YUAhyzVmPisSWU+nPPRuW4ffsmSgWEpz/aolLeogXuuPklP0K/0tHsz18F6JnTjErp4ph1FCyHxqE4mIHPg==}
+  '@super-line/collections-sqlite@0.1.1':
+    resolution: {integrity: sha512-lAYJbS4bqouYEouNzdnPQL7dhwLZBn8BHK18VUx7a6MMZQRePndabj4h7sOi5QOi4uItDDTCDVkqZyvHjHOymA==}
     engines: {node: '>=18'}
 
-  '@super-line/core@0.11.1':
-    resolution: {integrity: sha512-Y2Ls5pW5DrfE6OOVvDduNG/V3f1dwk84JLOfhXbPENd7wLWeJ5XKcyRniTyL6J4GFMFewpGRUhB3KOfLQOLDOg==}
+  '@super-line/core@0.11.2':
+    resolution: {integrity: sha512-5BSH3LWgRv+e7Nhu59B7RPKkplSs4Zs2sLEDCWYIrKGxkPXkRHISDagyKNbrb6PSvaFFFShEhP9lSSWnnu0Aqg==}
     engines: {node: '>=18'}
 
   '@super-line/plugin-auth@0.1.0':
@@ -3413,14 +3413,14 @@ packages:
       react:
         optional: true
 
-  '@super-line/plugin-inspector@0.2.1':
-    resolution: {integrity: sha512-QiYjvA8FIw3YlItC5MbgftuiiqmcZl3xk2fWQG7fT+cx0mUWSDe/WxjvflenS+Ri3XW4xj4244eYRrxaZnZIvQ==}
+  '@super-line/plugin-inspector@0.2.2':
+    resolution: {integrity: sha512-fjk/AOJJzQs+xkQlD//NzWz4fDeJrCp9JLd1YOt/G3kIrBV4ravCpJhKgYT7F6KQbM0EKtLovodFnOixc4GAlQ==}
     engines: {node: '>=18'}
     peerDependencies:
-      '@super-line/server': ^0.11.1
+      '@super-line/server': ^0.11.2
 
-  '@super-line/server@0.11.1':
-    resolution: {integrity: sha512-pLStCrkiejiXwdS7CatG3GoPzu6MGtJVOgm2MQUVeNOhXTCUiYGSpvvq4A0I/A8HYesrQ9Dz0SyfVutEusPFcA==}
+  '@super-line/server@0.11.2':
+    resolution: {integrity: sha512-YbRSXP3j+xqsRvtfiCQssfonDhG2i9a2MfYZ0aS6zm4Rz68cmrWRRC2N8wI0UQi0/06LR97PnNSLDf7E55dM1w==}
     engines: {node: '>=18'}
 
   '@super-line/tanstack-db@0.1.1':
@@ -9068,7 +9068,7 @@ snapshots:
       '@libp2p/tcp': 11.0.23
       '@libp2p/websockets': 10.1.16
       '@multiformats/multiaddr': 13.0.3
-      '@super-line/core': 0.11.1
+      '@super-line/core': 0.11.2
       datastore-fs: 12.0.1
       libp2p: 3.3.5
     transitivePeerDependencies:
@@ -9077,56 +9077,56 @@ snapshots:
 
   '@super-line/client@0.9.0':
     dependencies:
-      '@super-line/core': 0.11.1
+      '@super-line/core': 0.11.2
 
   '@super-line/collections-crdt-memory@0.1.0':
     dependencies:
-      '@super-line/core': 0.11.1
+      '@super-line/core': 0.11.2
       '@super-store/store': 0.3.1
 
   '@super-line/collections-crdt-pglite@0.1.0':
     dependencies:
       '@electric-sql/pglite': 0.5.4
       '@electric-sql/pglite-sync': 0.6.5(@electric-sql/pglite@0.5.4)
-      '@super-line/core': 0.11.1
+      '@super-line/core': 0.11.2
       '@super-store/store': 0.3.1
       postgres: 3.4.9
 
-  '@super-line/collections-memory@0.1.0':
+  '@super-line/collections-memory@0.1.1':
     dependencies:
-      '@super-line/core': 0.11.1
+      '@super-line/core': 0.11.2
 
-  '@super-line/collections-pglite@0.1.1':
+  '@super-line/collections-pglite@0.1.2':
     dependencies:
       '@electric-sql/pglite': 0.5.4
       '@electric-sql/pglite-sync': 0.6.5(@electric-sql/pglite@0.5.4)
-      '@super-line/core': 0.11.1
+      '@super-line/core': 0.11.2
       postgres: 3.4.9
 
-  '@super-line/collections-sqlite@0.1.0':
+  '@super-line/collections-sqlite@0.1.1':
     dependencies:
-      '@super-line/core': 0.11.1
+      '@super-line/core': 0.11.2
       better-sqlite3: 11.10.0
 
-  '@super-line/core@0.11.1':
+  '@super-line/core@0.11.2':
     dependencies:
       '@standard-schema/spec': 1.1.0
 
-  '@super-line/plugin-auth@0.1.0(@super-line/client@0.9.0)(@super-line/server@0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(react@19.2.7)':
+  '@super-line/plugin-auth@0.1.0(@super-line/client@0.9.0)(@super-line/server@0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(react@19.2.7)':
     dependencies:
-      '@super-line/core': 0.11.1
+      '@super-line/core': 0.11.2
       jose: 5.10.0
       zod: 3.25.76
     optionalDependencies:
       '@super-line/client': 0.9.0
-      '@super-line/server': 0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@super-line/server': 0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
       react: 19.2.7
 
-  '@super-line/plugin-inspector@0.2.1(@standard-schema/spec@1.1.0)(@super-line/server@0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
+  '@super-line/plugin-inspector@0.2.2(@standard-schema/spec@1.1.0)(@super-line/server@0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3))(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
     dependencies:
       '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
-      '@super-line/core': 0.11.1
-      '@super-line/server': 0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
+      '@super-line/core': 0.11.2
+      '@super-line/server': 0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
     transitivePeerDependencies:
       - '@standard-schema/spec'
       - '@types/json-schema'
@@ -9140,9 +9140,9 @@ snapshots:
       - zod
       - zod-to-json-schema
 
-  '@super-line/server@0.11.1(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
+  '@super-line/server@0.11.2(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)':
     dependencies:
-      '@super-line/core': 0.11.1
+      '@super-line/core': 0.11.2
     optionalDependencies:
       '@standard-community/standard-json': 0.3.5(@standard-schema/spec@1.1.0)(@types/json-schema@7.0.15)(quansync@0.2.11)(zod-to-json-schema@3.25.2(zod@4.4.3))(zod@4.4.3)
     transitivePeerDependencies:
@@ -9161,12 +9161,12 @@ snapshots:
   '@super-line/tanstack-db@0.1.1(@tanstack/db@0.5.33(typescript@5.9.3))':
     dependencies:
       '@super-line/client': 0.9.0
-      '@super-line/core': 0.11.1
+      '@super-line/core': 0.11.2
       '@tanstack/db': 0.5.33(typescript@5.9.3)
 
   '@super-line/transport-websocket@0.6.0':
     dependencies:
-      '@super-line/core': 0.11.1
+      '@super-line/core': 0.11.2
       ws: 8.21.0
     transitivePeerDependencies:
       - bufferutil
