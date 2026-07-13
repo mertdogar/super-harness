@@ -1,6 +1,6 @@
 {
   "name": "@super-harness/server",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Batteries-included super-line binding for Super Harness: the harness() plugin and standalone serve() expose a core Harness over a super-line server with durable harness.* collections, the wire contract, and HITL suspension/approval broadcast.",
   "keywords": [
     "agent",
