@@ -175,25 +175,29 @@ describe('harness: delegation + tree', () => {
 })
 
 describe('harness: tracing propagation', () => {
-  // A supervisor runner that delegates once, optionally forwarding a tracing
-  // context — mirrors the delegate tool passing ctx.tracing to runtime.delegate.
+  // A supervisor runner that records its own RunOptions, then delegates once —
+  // optionally forwarding the delegate tool-call's tracing context, mirroring
+  // the real delegate tool passing ctx.tracing to runtime.delegate.
   const delegatingRunner =
-    (tracing?: TracingContext) =>
+    (sink: { root?: RunOptions }, tracing?: TracingContext) =>
     (_node: NodeEnvelope, rt: HarnessRuntime): AgentRunner =>
-    async () => ({
-      fullStream: (async function* () {
-        yield { type: 'text-delta', payload: { text: 'go ' } }
-        await rt.delegate('worker', 'do it', 'tc-1', tracing)
-        yield { type: 'finish', payload: { output: { usage: { totalTokens: 1 } } } }
-      })(),
-    })
+    async (opts: RunOptions) => {
+      sink.root = opts
+      return {
+        fullStream: (async function* () {
+          yield { type: 'text-delta', payload: { text: 'go ' } }
+          await rt.delegate('worker', 'do it', 'tc-1', tracing)
+          yield { type: 'finish', payload: { output: { usage: { totalTokens: 1 } } } }
+        })(),
+      }
+    }
 
   // A child runner that records the RunOptions it was handed.
   const recordingRunner =
-    (sink: { opts?: RunOptions }) =>
+    (sink: { child?: RunOptions }) =>
     (_node: NodeEnvelope, _rt: HarnessRuntime): AgentRunner =>
     async (opts: RunOptions) => {
-      sink.opts = opts
+      sink.child = opts
       return {
         fullStream: (async function* () {
           yield { type: 'text-delta', payload: { text: 'child' } }
@@ -201,27 +205,38 @@ describe('harness: tracing propagation', () => {
       }
     }
 
-  const childRunOpts = async (tracing?: TracingContext): Promise<RunOptions | undefined> => {
-    const sink: { opts?: RunOptions } = {}
+  const runTurn = async (tracing?: TracingContext): Promise<{ root?: RunOptions; child?: RunOptions }> => {
+    const sink: { root?: RunOptions; child?: RunOptions } = {}
     const registry = new Map<string, SubagentEntry>()
-    registry.set('supervisor', { agentType: 'supervisor', delegatesTo: ['worker'], makeRunner: delegatingRunner(tracing) })
+    registry.set('supervisor', { agentType: 'supervisor', delegatesTo: ['worker'], makeRunner: delegatingRunner(sink, tracing) })
     registry.set('worker', { agentType: 'worker', makeRunner: recordingRunner(sink) })
     await new Harness({ supervisorType: 'supervisor', registry, maxDepth: 3 }).sendMessage({ threadId: 't1', content: 'hi' })
-    return sink.opts
+    return sink
   }
 
-  it('threads the delegate tool-call tracing context onto the child run', async () => {
-    // Only .id/.traceId are read downstream; a minimal span stands in for AnySpan.
-    const tracing = { currentSpan: { id: 's1', traceId: 't1' } } as unknown as TracingContext
-    const opts = await childRunOpts(tracing)
-    expect(opts?.tracingContext?.currentSpan).toBe(tracing.currentSpan)
-    expect(opts?.tracingContext?.currentSpan?.id).toBe('s1')
-    expect(opts?.tracingContext?.currentSpan?.traceId).toBe('t1')
+  it('mints one 32-hex turn traceId and threads it to BOTH the supervisor and the child', async () => {
+    const { root, child } = await runTurn()
+    expect(root?.traceId).toMatch(/^[0-9a-f]{32}$/)
+    expect(child?.traceId).toBe(root?.traceId) // same turn → one trace, no ctx.tracing needed
   })
 
-  it('leaves the child tracingContext undefined for an untraced turn (no behavior change)', async () => {
-    const opts = await childRunOpts(undefined)
-    expect(opts?.tracingContext).toBeUndefined()
+  it('gives a fresh traceId per turn', async () => {
+    const a = await runTurn()
+    const b = await runTurn()
+    expect(a.root?.traceId).not.toBe(b.root?.traceId)
+  })
+
+  it('still forwards the delegate tracing context to the child (parent-span nesting when present)', async () => {
+    // Only .id/.traceId are read downstream; a minimal span stands in for AnySpan.
+    const tracing = { currentSpan: { id: 's1', traceId: 't1' } } as unknown as TracingContext
+    const { child } = await runTurn(tracing)
+    expect(child?.tracingContext?.currentSpan).toBe(tracing.currentSpan)
+  })
+
+  it('leaves the child tracingContext undefined for an untraced delegation (traceId only)', async () => {
+    const { child } = await runTurn(undefined)
+    expect(child?.tracingContext).toBeUndefined()
+    expect(child?.traceId).toMatch(/^[0-9a-f]{32}$/) // still in the turn trace
   })
 })
 

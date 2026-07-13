@@ -14,6 +14,7 @@ import { RequestContext } from '@mastra/core/request-context'
 import type { ToolsInput } from '@mastra/core/agent'
 import type { MastraModelConfig } from '@mastra/core/llm'
 import type { TracingContext, TracingOptions } from '@mastra/core/observability'
+import { randomBytes } from 'node:crypto'
 import { nanoid } from 'nanoid'
 import type { FileAttachment, HarnessEvent, HarnessTree, TokenUsage } from '@super-harness/shared'
 import type { Suspension } from './chunk-adapter'
@@ -190,6 +191,9 @@ interface ThreadState {
   // The current turn's host context (EngineConfig.requestContext), reachable by
   // #spawnChild so subagent runners receive the same value as the root.
   turnContext?: unknown
+  // The current turn's trace id — minted per turn in #drive, reused by
+  // #spawnChild so every node of the turn shares one Mastra trace.
+  turnTraceId?: string
 }
 
 export class Harness {
@@ -328,6 +332,9 @@ export class Harness {
     const st = this.#state(threadId)
     st.running = true
     st.abort = new AbortController()
+    // One trace id per turn, threaded to the supervisor AND every #spawnChild so
+    // a delegating turn is a single Mastra trace (32 hex chars per tracingOptions).
+    st.turnTraceId = randomBytes(16).toString('hex')
     try {
       const entry = this.#entry(this.cfg.supervisorType)
       const runtime = this.#makeRuntime(threadId, node)
@@ -366,6 +373,7 @@ export class Harness {
         resumeData,
         files,
         requestContext: st.turnContext,
+        traceId: st.turnTraceId,
         modeInstructions: mode?.instructions,
         activeTools: mode?.availableTools,
         requireApproval: this.#approvalPredicate(threadId),
@@ -502,7 +510,8 @@ export class Harness {
         maxSteps: entry.maxSteps,
         abortSignal: this.#threads.get(threadId)?.abort?.signal,
         requestContext: this.#threads.get(threadId)?.turnContext,
-        tracingContext, // ← nest the child under the delegate tool-call span
+        traceId: this.#threads.get(threadId)?.turnTraceId, // ← same trace as the whole turn
+        tracingContext, // ← nest the child UNDER the delegate tool-call span when available
       },
       emit: (e) => this.#emitNode(threadId, e),
       suppressToolNames: SUPPRESS,
@@ -828,13 +837,18 @@ export function createHarness(config: HarnessConfig): Harness {
           abortSignal: opts.abortSignal,
           requestContext: rc,
         }
-        // Nest the child AGENT_RUN under the delegate tool-call span: derive
-        // {traceId, parentSpanId} from the parent span so Mastra parents this
-        // run's root span into that trace instead of opening a new root.
+        // Keep the whole turn in ONE Mastra trace: the per-turn traceId joins
+        // this run's root span to the turn's trace (works even when Mastra
+        // doesn't hand the delegate tool a live span — ambient span propagation
+        // does NOT cross into the child stream). When the parent delegate span
+        // IS present, also set parentSpanId so the child AGENT_RUN nests under it.
         const parentSpan = opts.tracingContext?.currentSpan
-        if (parentSpan) {
-          const tracingOptions: TracingOptions = { traceId: parentSpan.traceId, parentSpanId: parentSpan.id }
-          streamOpts.tracingOptions = tracingOptions
+        const traceId = opts.traceId ?? parentSpan?.traceId
+        if (traceId || parentSpan) {
+          streamOpts.tracingOptions = {
+            ...(traceId ? { traceId } : {}),
+            ...(parentSpan ? { parentSpanId: parentSpan.id } : {}),
+          } satisfies TracingOptions
         }
         if (opts.modeInstructions) streamOpts.instructions = await layerInstructions(agent, opts.modeInstructions)
         // A mode allowlist must never hide the harness built-ins.

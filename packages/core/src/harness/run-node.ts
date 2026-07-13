@@ -33,10 +33,15 @@ export interface RunOptions {
   // Mastra runner copies its entries into the node's RequestContext beneath the
   // harness runtime key. Same value for every node of the turn.
   requestContext?: unknown
+  // The turn's trace id — minted once per turn and threaded to EVERY node
+  // (supervisor + children) as Mastra tracingOptions.traceId, so a whole turn
+  // lands in ONE trace even when Mastra doesn't hand the delegate tool a live
+  // span (ambient span propagation does NOT cross into the child stream).
+  traceId?: string
   // The parent delegate tool-call's tracing context (its currentSpan is the
-  // delegate TOOL_CALL span). When set, runnerFactory derives Mastra
-  // tracingOptions {traceId, parentSpanId} from it so the child's AGENT_RUN
-  // span nests under the parent turn's trace instead of starting a new root.
+  // delegate TOOL_CALL span). When present, runnerFactory adds parentSpanId so
+  // the child's AGENT_RUN span nests UNDER that span; when absent, the traceId
+  // above still keeps the child in the same trace (as a sibling root).
   tracingContext?: TracingContext
   // Attachments folded into the user message (root turns only): image/* as
   // image parts, other mimeTypes as file parts.

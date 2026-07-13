@@ -16,5 +16,8 @@
     "@super-harness/server": "workspace:*",
     "@super-line/transport-websocket": "^0.6.0",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@mastra/observability": "^1.16.0"
   }
 }
